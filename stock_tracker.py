@@ -55,14 +55,14 @@ def get_market_sentiment(ticker):
 
 # Function to generate buy/sell signals based on indicators & sentiment
 def generate_signals(df, sentiment_score):
-    buy_signals = []
-    sell_signals = []
+    buy_signals = [None] * len(df)  # Initialize with None
+    sell_signals = [None] * len(df) # Initialize with None
 
-    for i in range(1, len(df)):
+    for i in range(1, len(df)):  # Start from index 1
         buy_signal = False
         sell_signal = False
 
-        # Technical Indicators Condition
+        # Technical Indicator Conditions
         if df["RSI"].iloc[i] < 30 and df["MACD"].iloc[i] > df["MACD_Signal"].iloc[i]:
             buy_signal = True
         elif df["RSI"].iloc[i] > 70 and df["MACD"].iloc[i] < df["MACD_Signal"].iloc[i]:
@@ -70,16 +70,18 @@ def generate_signals(df, sentiment_score):
 
         # Adjust signals based on market sentiment
         if sentiment_score > 0:
-            buy_signal = buy_signal or (sentiment_score > 2)  # Strong sentiment can create buy signal
+            buy_signal = buy_signal or (sentiment_score > 2)  # Strong sentiment can create buy
         elif sentiment_score < 0:
             sell_signal = sell_signal or (sentiment_score < -2)  # Strong negative sentiment can trigger sell
 
         # Store signals
-        buy_signals.append(df["Close"].iloc[i] if buy_signal else None)
-        sell_signals.append(df["Close"].iloc[i] if sell_signal else None)
+        if buy_signal:
+            buy_signals[i] = df["Close"].iloc[i]  # Set buy signal price
+        if sell_signal:
+            sell_signals[i] = df["Close"].iloc[i]  # Set sell signal price
 
-    df["Buy_Signal"] = [None] + buy_signals  # Shift for proper indexing
-    df["Sell_Signal"] = [None] + sell_signals  # Shift for proper indexing
+    df["Buy_Signal"] = buy_signals
+    df["Sell_Signal"] = sell_signals
     return df
 
 # Streamlit UI
