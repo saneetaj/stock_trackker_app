@@ -191,13 +191,22 @@ def optimize_parameters(df):
             for macd_slow in macd_slows:
                 for macd_signal_window in macd_signal_windows:
                     try:
-                        # Before calling backtest, check if df is valid
+                        # Before calling backtest, check if df is valid and contains essential columns
                         if df.empty or not all(col in df for col in ["Open", "High", "Low", "Close", "Volume"]):
                             st.error(f"Invalid DataFrame before backtest with parameters (RSI={rsi_window}, MACD Fast={macd_fast}, MACD Slow={macd_slow}, Signal={macd_signal_window})")
                             return None, None, None, None, 0  # Return a default value
 
                         # Create a copy here to avoid modifying the original DataFrame
                         df_copy = df.copy()
+
+                        # Add the technical indicators here, before backtesting
+                        df_copy = add_technical_indicators(df_copy)
+                        
+                        # Check again, after adding indicators, if the df_copy is valid for backtest
+                        if df_copy.empty or not all(col in df_copy for col in ["Open", "High", "Low", "Close", "Volume", "RSI", "MACD", "MACD_Signal", "ADX", "VWAP"]):
+                            st.error(f"Invalid DataFrame before backtest with parameters (RSI={rsi_window}, MACD Fast={macd_fast}, MACD Slow={macd_slow}, Signal={macd_signal_window})")
+                            return None, None, None, None, 0  # Return a default value
+
                         profit, profit_factor, max_drawdown, positions = backtest(df_copy, rsi_window, macd_fast, macd_slow, macd_signal_window)
                         if profit_factor > best_profit_factor:
                             best_profit_factor = profit_factor
