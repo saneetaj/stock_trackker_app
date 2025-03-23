@@ -2,8 +2,7 @@ streamlit
 yfinance
 pandas
 numpy
-ta
-time
+ta==0.10.2
 requests
 bs4
 BeautifulSoup
