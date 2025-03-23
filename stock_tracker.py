@@ -8,9 +8,11 @@ import requests
 from bs4 import BeautifulSoup
 import plotly.graph_objects as go
 
-# Initialize session state for stop tracking button
+# Initialize session state variables
 if "stop_tracking" not in st.session_state:
-    st.session_state.stop_tracking = False
+    st.session_state.stop_tracking = True  # Start in stopped state
+if "start_tracking" not in st.session_state:
+    st.session_state.start_tracking = False
 
 # Function to fetch stock data
 def get_stock_data(ticker):
@@ -97,72 +99,83 @@ st.title("📈 Real-time Stock Tracker with AI-based Signals")
 
 ticker = st.text_input("Enter Stock Ticker (e.g., AAPL, TSLA, MSFT):", "AAPL")
 
-# Button to stop tracking.  Moved *outside* the loop.
-stop_tracking_button = st.button("Stop Tracking")
-
+# Buttons for starting and stopping tracking
+col1, col2 = st.columns(2)  # Divide button layout into two columns
+with col1:
+    start_tracking_button = st.button("Start Tracking")
+with col2:
+    stop_tracking_button = st.button("Stop Tracking")
 
 placeholder = st.empty()  # Placeholder for updating content dynamically
 
+# Update session state based on button clicks
+if start_tracking_button:
+    st.session_state.stop_tracking = False
+    st.session_state.start_tracking = True #redundant
+    st.rerun()  # Force a rerun to start the loop
+
+if stop_tracking_button:
+    st.session_state.stop_tracking = True
+    st.session_state.start_tracking = False #redundant
+    st.rerun()  # Stop loop and show stopped message
+
 # Real-time tracking loop
-while not st.session_state.stop_tracking:
-    df = get_stock_data(ticker)
-    if df.empty:
-        time.sleep(15)
-        continue  # Skip the rest of the loop if no data
-    df = add_technical_indicators(df)
-    df = generate_signals(df)  # Add buy/sell signals
-    sentiment = get_market_sentiment(ticker)
+if not st.session_state.stop_tracking: # Only run if not stopped
+    while True:
+        df = get_stock_data(ticker)
+        if df.empty:
+            time.sleep(15)
+            continue  # Skip the rest of the loop if no data
+        df = add_technical_indicators(df)
+        df = generate_signals(df)  # Add buy/sell signals
+        sentiment = get_market_sentiment(ticker)
 
-    # Create plot
-    fig = go.Figure()
+        # Create plot
+        fig = go.Figure()
 
-    # Candlestick chart
-    fig.add_trace(go.Candlestick(
-        x=df.index,
-        open=df['Open'],
-        high=df['High'],
-        low=df['Low'],
-        close=df['Close'],
-        name="Candlesticks"
-    ))
-
-    # EMA 20
-    if "EMA_20" in df:
-        fig.add_trace(go.Scatter(x=df.index, y=df["EMA_20"], mode="lines", name="EMA 20", line=dict(color='blue')))
-
-    # Bollinger Bands
-    if "BB_High" in df and "BB_Low" in df:
-        fig.add_trace(go.Scatter(x=df.index, y=df["BB_High"], mode="lines", name="BB High", line=dict(color='green')))
-        fig.add_trace(go.Scatter(x=df.index, y=df["BB_Low"], mode="lines", name="BB Low", line=dict(color='red')))
-
-    # Buy Signals (🔵)
-    if "Buy_Signal" in df:
-        fig.add_trace(go.Scatter(
-            x=df.index, y=df["Buy_Signal"], mode="markers", name="BUY Signal",
-            marker=dict(symbol="triangle-up", size=10, color="blue")
+        # Candlestick chart
+        fig.add_trace(go.Candlestick(
+            x=df.index,
+            open=df['Open'],
+            high=df['High'],
+            low=df['Low'],
+            close=df['Close'],
+            name="Candlesticks"
         ))
 
-    # Sell Signals (🔴)
-    if "Sell_Signal" in df:
-        fig.add_trace(go.Scatter(
-            x=df.index, y=df["Sell_Signal"], mode="markers", name="SELL Signal",
-            marker=dict(symbol="triangle-down", size=10, color="red")
-        ))
+        # EMA 20
+        if "EMA_20" in df:
+            fig.add_trace(go.Scatter(x=df.index, y=df["EMA_20"], mode="lines", name="EMA 20", line=dict(color='blue')))
 
-    # Update layout
-    fig.update_layout(title=f"{ticker} Stock Performance", xaxis_rangeslider_visible=False)
+        # Bollinger Bands
+        if "BB_High" in df and "BB_Low" in df:
+            fig.add_trace(go.Scatter(x=df.index, y=df["BB_High"], mode="lines", name="BB High", line=dict(color='green')))
+            fig.add_trace(go.Scatter(x=df.index, y=df["BB_Low"], mode="lines", name="BB Low", line=dict(color='red')))
 
-    # Display chart and signals
-    with placeholder.container():
-        st.plotly_chart(fig, key=f"chart_{time.time()}")  # Ensure a unique key to prevent duplicate IDs
-        st.write(f"**Market Sentiment Score:** {sentiment} (Higher is better)")
+        # Buy Signals (🔵)
+        if "Buy_Signal" in df:
+            fig.add_trace(go.Scatter(
+                x=df.index, y=df["Buy_Signal"], mode="markers", name="BUY Signal",
+                marker=dict(symbol="triangle-up", size=10, color="blue")
+            ))
 
-    time.sleep(15)  # Refresh every 15 seconds
-    st.rerun()  # Forces a rerun for real-time updates
+        # Sell Signals (🔴)
+        if "Sell_Signal" in df:
+            fig.add_trace(go.Scatter(
+                x=df.index, y=df["Sell_Signal"], mode="markers", name="SELL Signal",
+                marker=dict(symbol="triangle-down", size=10, color="red")
+            ))
 
-    if stop_tracking_button: # Check the button *inside* the loop
-        st.session_state.stop_tracking = True
-        st.stop() # Stop the script.  Important for Streamlit and avoids errors.
+        # Update layout
+        fig.update_layout(title=f"{ticker} Stock Performance", xaxis_rangeslider_visible=False)
+
+        # Display chart and signals
+        with placeholder.container():
+            st.plotly_chart(fig, key=f"chart_{time.time()}")  # Ensure a unique key to prevent duplicate IDs
+            st.write(f"**Market Sentiment Score:** {sentiment} (Higher is better)")
+
+        time.sleep(15)  # Refresh every 15 seconds
+        st.rerun()  # Forces a rerun for real-time updates
 
 if st.session_state.stop_tracking:
-    st.write("Tracking stopped.") # show message.
+    st.write("Tracking stopped.")
