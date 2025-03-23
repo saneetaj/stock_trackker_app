@@ -49,22 +49,26 @@ def get_market_sentiment(ticker):
 
 # Function to generate buy/sell signals
 def generate_signals(df):
-    buy_signals = []
-    sell_signals = []
-    
-    for i in range(1, len(df)):
-        if df["RSI"].iloc[i] < 30 and df["MACD"].iloc[i] > df["MACD_Signal"].iloc[i]:
-            buy_signals.append(df["Close"].iloc[i])
-            sell_signals.append(None)  # No sell signal
-        elif df["RSI"].iloc[i] > 70 and df["MACD"].iloc[i] < df["MACD_Signal"].iloc[i]:
-            sell_signals.append(df["Close"].iloc[i])
-            buy_signals.append(None)  # No buy signal
-        else:
-            buy_signals.append(None)
-            sell_signals.append(None)
+    # Initialize signals with NaN values
+    df["Buy_Signal"] = np.nan
+    df["Sell_Signal"] = np.nan
 
-    df["Buy_Signal"] = buy_signals
-    df["Sell_Signal"] = sell_signals
+    for i in range(1, len(df)):  # Avoid index errors at i=0
+        buy_signal = None
+        sell_signal = None
+
+        # Buy condition: RSI below 30 & MACD above MACD_Signal
+        if df["RSI"].iloc[i] < 30 and df["MACD"].iloc[i] > df["MACD_Signal"].iloc[i]:
+            buy_signal = df["Close"].iloc[i]
+
+        # Sell condition: RSI above 70 & MACD below MACD_Signal
+        elif df["RSI"].iloc[i] > 70 and df["MACD"].iloc[i] < df["MACD_Signal"].iloc[i]:
+            sell_signal = df["Close"].iloc[i]
+
+        # Store signals in DataFrame
+        df.at[df.index[i], "Buy_Signal"] = buy_signal
+        df.at[df.index[i], "Sell_Signal"] = sell_signal
+
     return df
 
 # Streamlit UI
