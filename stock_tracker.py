@@ -207,8 +207,8 @@ if not st.session_state.stop_tracking:
     for ticker in st.session_state.tracked_tickers:
         # Determine the period based on the day of the week
         now = datetime.now()
-        period = "14d"  # Show data for the past 14 days
-        interval = "1h"  # Use 1-hour interval for 14-day view
+        period = "1mo"  # Show data for the past 1 month
+        interval = "1h"  # Use 1-hour interval for 1-month view
 
         df = get_stock_data(ticker, period=period, interval=interval)
         if df.empty:
