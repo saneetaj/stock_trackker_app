@@ -13,6 +13,8 @@ if "stop_tracking" not in st.session_state:
     st.session_state.stop_tracking = True
 if "start_tracking" not in st.session_state:
     st.session_state.start_tracking = False
+if "selected_indicators" not in st.session_state:
+    st.session_state.selected_indicators = []
 
 # Function to fetch stock data
 def get_stock_data(ticker, period="1y", interval="1h"):
@@ -93,7 +95,6 @@ def generate_signals(df):
                 ):
                     sell_signals[i] = 1
                     sell_prices[i] = df["Close"].iloc[i]
-
         df["Buy_Signal"] = pd.Series(buy_signals, index=df.index)
         df["Sell_Signal"] = pd.Series(sell_signals, index=df.index)
         df["Buy_Price"] = pd.Series(buy_prices, index=df.index)
@@ -104,7 +105,7 @@ def generate_signals(df):
         return df
 
 # Streamlit UI
-st.title("📈 Real-time Stock Tracker with AI-based Signals")
+st.title("📈 Real-time Stock Tracker")
 
 ticker = st.text_input("Enter Stock Ticker (e.g., AAPL, TSLA, MSFT):", "AAPL")
 
@@ -188,20 +189,29 @@ if not st.session_state.stop_tracking:
     df = generate_signals(df)
     sentiment = get_market_sentiment(ticker)
 
-    # Debugging: Print indicator values
-    if not df.empty:
-        st.write(f"Current RSI: {df['RSI'].iloc[-1]:.2f}")
-        st.write(f"Current MACD: {df['MACD'].iloc[-1]:.2f}, Signal: {df['MACD_Signal'].iloc[-1]:.2f}")
-        st.write(f"Current ADX: {df['ADX'].iloc[-1]:.2f}")
-        st.write(f"Current Close: {df['Close'].iloc[-1]:.2f}, VWAP: {df['VWAP'].iloc[-1]:.2f}")
+    # Add checkboxes for indicators
+    st.sidebar.subheader("Select Technical Indicators")
+    ema_20_selected = st.sidebar.checkbox("EMA 20", key="ema_20_checkbox")
+    rsi_selected = st.sidebar.checkbox("RSI", key="rsi_checkbox")
+    macd_selected = st.sidebar.checkbox("MACD", key="macd_checkbox")
+    bb_selected = st.sidebar.checkbox("Bollinger Bands", key="bb_checkbox")
+    adx_selected = st.sidebar.checkbox("ADX", key="adx_checkbox")
+    vwap_selected = st.sidebar.checkbox("VWAP", key="vwap_checkbox")
 
-        # Check for buy/sell signals and display them
-        if df["Buy_Signal"].iloc[-1] == 1:
-            st.write(f"AI Recommendation: Buy {ticker} at {df['Close'].iloc[-1]:.2f}")
-        elif df["Sell_Signal"].iloc[-1] == 1:
-            st.write(f"AI Recommendation: Sell {ticker} at {df['Close'].iloc[-1]:.2f}")
-        else:
-            st.write(f"AI Recommendation: No Action on {ticker}")
+    # Store selected indicators in session state
+    st.session_state.selected_indicators = []
+    if ema_20_selected:
+        st.session_state.selected_indicators.append("EMA_20")
+    if rsi_selected:
+        st.session_state.selected_indicators.append("RSI")
+    if macd_selected:
+        st.session_state.selected_indicators.append("MACD")
+    if bb_selected:
+        st.session_state.selected_indicators.extend(["BB_High", "BB_Mid", "BB_Low"])
+    if adx_selected:
+        st.session_state.selected_indicators.append("ADX")
+    if vwap_selected:
+        st.session_state.selected_indicators.append("VWAP")
 
     # Create plot
     fig = go.Figure()
@@ -216,75 +226,55 @@ if not st.session_state.stop_tracking:
         name="Candlesticks"
     ))
 
-    # EMA 20
-    if "EMA_20" in df:
-        fig.add_trace(go.Scatter(x=df.index, y=df["EMA_20"], mode="lines", name="EMA 20", line=dict(color='blue')))
+    # Add selected indicators
+    for indicator in st.session_state.selected_indicators:
+        if indicator in df:
+            fig.add_trace(go.Scatter(x=df.index, y=df[indicator], mode="lines", name=indicator))
 
-    # Bollinger Bands
-    if "BB_High" in df and "BB_Low" in df:
-        fig.add_trace(go.Scatter(x=df.index, y=df["BB_High"], mode="lines", name="Bollinger High", line=dict(color='green')))
-        fig.add_trace(go.Scatter(x=df.index, y=df["BB_Low"], mode="lines", name="Bollinger Low", line=dict(color='red')))
+    # Buy/Sell Signals
+    if "Buy_Signal" in df and "Sell_Signal" in df:
+        buy_signal_data = df[df["Buy_Signal"] == 1]
+        sell_signal_data = df[df["Sell_Signal"] == 1]
 
-    if "VWAP" in df:
-        fig.add_trace(go.Scatter(x=df.index, y=df["VWAP"], mode="lines", name="VWAP", line=dict(color='purple')))
+        for index, row in buy_signal_data.iterrows():
+            fig.add_shape(
+                type="line",
+                x0=index,
+                x1=index,
+                y0=df['Low'].min(),
+                y1=df['High'].max(),
+                line=dict(color="blue", width=2, dash="dot"),
+                name="Buy Signal"
+            )
+            fig.add_annotation(
+                x=index,
+                y=df['High'].max(),
+                text=f"Buy: {row['Buy_Price']:.2f}",
+                showarrow=False,
+                xanchor="left",
+                yanchor="bottom",
+                font=dict(size=10, color="blue")
+            )
 
-    # Buy Signals (🔵) - Changed to vertical dotted lines
-    if "Buy_Signal" in df:
-        buy_signal_data = df[df["Buy_Signal"].notnull()]
-        if not buy_signal_data.empty:
-            for index, row in buy_signal_data.iterrows():
-                fig.add_shape(
-                    type="line",
-                    x0=index,
-                    x1=index,
-                    y0=df['Low'].min(),
-                    y1=df['High'].max(),
-                    line=dict(
-                        color="blue",
-                        width=2,
-                        dash="dot",
-                    ),
-                    name="Buy Signal",
-                )
-                # Display Buy Price
-                fig.add_annotation(
-                    x=index,
-                    y=df['High'].max(),
-                    text=f"Buy: {row['Buy_Price']:.2f}",
-                    showarrow=False,
-                    xanchor="left",
-                    yanchor="bottom",
-                    font=dict(size=10, color="blue"),
-                )
-
-    # Sell Signals (🔴) - Changed to vertical dotted lines
-    if "Sell_Signal" in df:
-        sell_signal_data = df[df["Sell_Signal"].notnull()]
-        if not sell_signal_data.empty:
-            for index, row in sell_signal_data.iterrows():
-                fig.add_shape(
-                    type="line",
-                    x0=index,
-                    x1=index,
-                    y0=df['Low'].min(),
-                    y1=df['High'].max(),
-                    line=dict(
-                        color="red",
-                        width=2,
-                        dash="dot",
-                    ),
-                    name="Sell Signal",
-                )
-                # Display Sell Price
-                fig.add_annotation(
-                    x=index,
-                    y=df['High'].max(),
-                    text=f"Sell: {row['Sell_Price']:.2f}",
-                    showarrow=False,
-                    xanchor="left",
-                    yanchor="bottom",
-                    font=dict(size=10, color="red"),
-                )
+        for index, row in sell_signal_data.iterrows():
+            fig.add_shape(
+                type="line",
+                x0=index,
+                x1=index,
+                y0=df['Low'].min(),
+                y1=df['High'].max(),
+                line=dict(color="red", width=2, dash="dot"),
+                name="Sell Signal"
+            )
+            fig.add_annotation(
+                x=index,
+                y=df['High'].max(),
+                text=f"Sell: {row['Sell_Price']:.2f}",
+                showarrow=False,
+                xanchor="left",
+                yanchor="bottom",
+                font=dict(size=10, color="red")
+            )
 
     # Update layout
     fig.update_layout(title=f"{ticker} Stock Performance", xaxis_rangeslider_visible=False)
@@ -293,6 +283,15 @@ if not st.session_state.stop_tracking:
     with placeholder.container():
         st.plotly_chart(fig, key=f"chart_{time.time()}")
         st.write(f"**Market Sentiment Score:** {sentiment} (Higher is better)")
+
+        # Display AI Recommendation
+        if not df.empty:
+            if df["Buy_Signal"].iloc[-1] == 1:
+                st.write(f"AI Recommendation: Buy {ticker} at {df['Close'].iloc[-1]:.2f}")
+            elif df["Sell_Signal"].iloc[-1] == 1:
+                st.write(f"AI Recommendation: Sell {ticker} at {df['Close'].iloc[-1]:.2f}")
+            else:
+                st.write(f"AI Recommendation: No Action on {ticker}")
 
         time.sleep(15)
         st.rerun()
