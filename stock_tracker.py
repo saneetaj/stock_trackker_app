@@ -167,11 +167,11 @@ with st.sidebar:
         **Explanation of Terms:**
 
         **Market Sentiment Score:**
-        * This score indicates the general mood of the market towards the selected stock, based on an analysis of recent news headlines.
+        * This score indicates the general mood of the market towards the selected stock, based on analysis of recent news headlines.
         * The score is calculated by counting positive and negative keywords in the news.
             * A higher score suggests more positive sentiment.
             * A lower or negative score suggests more negative sentiment.
-        * It is a general indicator and should be used with other information, not as a sole predictor of buy/sell decisions.
+        * It's a general indicator and should be used with other information, not as a sole predictor of buy/sell decisions.
 
         **Technical Indicators:**
         * **EMA (Exponential Moving Average):** Averages prices, giving more weight to recent data.  Helps identify trends.
@@ -207,17 +207,17 @@ if not st.session_state.stop_tracking:
     for ticker in st.session_state.tracked_tickers:
         # Determine the period based on the day of the week
         now = datetime.now()
-        period = "6mo"  # Show data for the past 6 months
-        interval = "1d"  # Use 1-day interval for 6-month view
+        period = "2d"  #  Use a 2 day period to ensure enough data points for the 5 min interval.
+        interval = "5m"  # Fetch data at 5-minute intervals
 
         df = get_stock_data(ticker, period=period, interval=interval)
         if df.empty:
-            time.sleep(120)
+            time.sleep(300)  # 5 minutes
             st.rerun()
         df = add_technical_indicators(df)
         if df.empty:
             st.error(f"No data available for {ticker}. Please check the ticker symbol and try again.")
-            time.sleep(120)
+            time.sleep(300)
             st.rerun()
         df = generate_signals(df)
         all_dfs[ticker] = df
@@ -293,7 +293,7 @@ if not st.session_state.stop_tracking:
                         x1=index,
                         y0=df['Low'].min(),
                         y1=df['High'].max(),
-                        line=dict(color="red", width="2", dash="dot"),
+                        line=dict(color="red", width=2, dash="dot"),
                         name="Sell Signal"
                     )
                     fig.add_annotation(
@@ -331,5 +331,5 @@ if not st.session_state.stop_tracking:
                 else:
                     st.write(f"AI Recommendation for {ticker}: No Action.   Reasons: No strong buy or sell signals detected.")
 
-        time.sleep(120)
+        time.sleep(300)  # 5 minutes
         st.rerun()
