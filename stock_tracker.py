@@ -150,8 +150,8 @@ if not st.session_state.stop_tracking:
 
         # Bollinger Bands
         if "BB_High" in df and "BB_Low" in df:
-            fig.add_trace(go.Scatter(x=df.index, y=df["BB_High"], mode="lines", name="BB High", line=dict(color='green')))
-            fig.add_trace(go.Scatter(x=df.index, y=df["BB_Low"], mode="lines", name="BB Low", line=dict(color='red')))
+            fig.add_trace(go.Scatter(x=df.index, y=df["BB_High"], mode="lines", name="Bollinger High", line=dict(color='green')))
+            fig.add_trace(go.Scatter(x=df.index, y=df["BB_Low"], mode="lines", name="Bollinger Low", line=dict(color='red')))
 
         # Buy Signals (🔵) - Changed to vertical dotted lines
         if "Buy_Signal" in df:
@@ -169,7 +169,7 @@ if not st.session_state.stop_tracking:
                             width=2,
                             dash="dot",  # Use a dotted line
                         ),
-                        name="BUY Signal",
+                        name="Buy Signal", # Changed name
                     )
 
         # Sell Signals (🔴) - Changed to vertical dotted lines
@@ -188,7 +188,7 @@ if not st.session_state.stop_tracking:
                             width=2,
                             dash="dot",
                         ),
-                        name="SELL Signal",
+                        name="Sell Signal", # Changed Name
                     )
 
         # Update layout
