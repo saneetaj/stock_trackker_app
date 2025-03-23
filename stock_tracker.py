@@ -115,48 +115,55 @@ def generate_signals(df, rsi_window, macd_fast, macd_slow, macd_signal_window): 
 
 # Function for backtesting
 def backtest(df, rsi_window, macd_fast, macd_slow, macd_signal_window, initial_capital=10000):
-    df = generate_signals(df, rsi_window, macd_fast, macd_slow, macd_signal_window)
-    
-    positions = []
-    capital = initial_capital
-    buy_price = 0  # Initialize buy_price here to avoid NameError.  This is CRUCIAL
-    
-    for i in range(len(df)):
-        if df["Buy_Signal"].iloc[i] == 1 and not positions:
-            positions.append(("Buy", df["Close"].iloc[i], capital / df["Close"].iloc[i], i))  # (Buy/Sell, Price, Quantity, Index)
-            capital = 0
-            buy_price = df["Close"].iloc[i] # Capture buy price
-        elif df["Sell_Signal"].iloc[i] == 1 and positions:
-            quantity = positions[0][2]
-            capital = quantity * df["Close"].iloc[i]
-            positions.append(("Sell", df["Close"].iloc[i], quantity, i))
-            positions = []  # Clear positions after selling
+    try:
+        if df.empty or not all(col in df for col in ["Open", "High", "Low", "Close", "Volume"]):
+            raise ValueError("Invalid DataFrame: Missing data or empty.")
 
-    if positions: # Handle any open positions at the end
-        final_price = df["Close"].iloc[-1]
-        capital = positions[0][2] * final_price
-        positions.append(("Sell", final_price, positions[0][2], len(df)-1))
+        df = generate_signals(df, rsi_window, macd_fast, macd_slow, macd_signal_window)
+        
+        positions = []
+        capital = initial_capital
+        buy_price = 0  # Initialize buy_price here to avoid NameError.  This is CRUCIAL
+        
+        for i in range(len(df)):
+            if df["Buy_Signal"].iloc[i] == 1 and not positions:
+                positions.append(("Buy", df["Close"].iloc[i], capital / df["Close"].iloc[i], i))  # (Buy/Sell, Price, Quantity, Index)
+                capital = 0
+                buy_price = df["Close"].iloc[i] # Capture buy price
+            elif df["Sell_Signal"].iloc[i] == 1 and positions:
+                quantity = positions[0][2]
+                capital = quantity * df["Close"].iloc[i]
+                positions.append(("Sell", df["Close"].iloc[i], quantity, i))
+                positions = []  # Clear positions after selling
 
-    total_profit = capital - initial_capital
-    
-    # Calculate max drawdown
-    peak = initial_capital
-    drawdown = 0
-    max_drawdown = 0
-    for p in positions:
-        if p[0] == "Buy":
-            peak = initial_capital
-        elif p[0] == "Sell":
-            peak = max(peak, capital + (p[1] - buy_price) * p[2])
-            drawdown = peak - capital
-            max_drawdown = max(max_drawdown, drawdown)
-    
-    
-    if initial_capital > 0:
-      profit_factor = capital / initial_capital if initial_capital > 0 else 0
-    else:
-      profit_factor = 0
-    return total_profit, profit_factor, max_drawdown, positions #returning the positions
+        if positions: # Handle any open positions at the end
+            final_price = df["Close"].iloc[-1]
+            capital = positions[0][2] * final_price
+            positions.append(("Sell", final_price, positions[0][2], len(df)-1))
+
+        total_profit = capital - initial_capital
+        
+        # Calculate max drawdown
+        peak = initial_capital
+        drawdown = 0
+        max_drawdown = 0
+        for p in positions:
+            if p[0] == "Buy":
+                peak = initial_capital
+            elif p[0] == "Sell":
+                peak = max(peak, capital + (p[1] - buy_price) * p[2])
+                drawdown = peak - capital
+                max_drawdown = max(max_drawdown, drawdown)
+        
+        
+        if initial_capital > 0:
+          profit_factor = capital / initial_capital if initial_capital > 0 else 0
+        else:
+          profit_factor = 0
+        return total_profit, profit_factor, max_drawdown, positions #returning the positions
+    except Exception as e:
+        st.error(f"Error in backtest: {e}")
+        return 0, 0, 0, []
 
 
 # Function to optimize parameters
@@ -171,6 +178,10 @@ def optimize_parameters(df):
     macd_fasts = [12]
     macd_slows = [26]
     macd_signal_windows = [9]
+    
+    if df is None or df.empty:
+        st.error("Error: optimize_parameters received an empty DataFrame.")
+        return None, None, None, None, 0
     
     for rsi_window in rsi_windows:
         for macd_fast in macd_fasts:
