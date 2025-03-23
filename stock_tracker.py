@@ -319,7 +319,7 @@ if not st.session_state.stop_tracking:
             elif df["Sell_Signal"].iloc[-1] == 1:
                 st.write(f"AI Recommendation: Sell {ticker} at {df['Close'].iloc[-1]:.2f} Reasons: {df['Sell_Reasons'].iloc[-1]}")
             else:
-                st.write(f"AI Recommendation: No Action on {ticker}")
+                st.write(f"AI Recommendation: No Action on {ticker}.  Reasons: No strong buy or sell signals detected.")
 
         time.sleep(15)
         st.rerun()
