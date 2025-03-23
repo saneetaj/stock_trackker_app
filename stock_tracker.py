@@ -205,7 +205,16 @@ if "tracked_tickers" not in st.session_state:
 if not st.session_state.stop_tracking:
     all_dfs = {}
     for ticker in st.session_state.tracked_tickers:
-        df = get_stock_data(ticker, period="1y", interval="1h")
+        # Determine the period based on the day of the week
+        now = datetime.now()
+        if now.weekday() < 5:  # Monday to Friday (0-4)
+            period = "1d"  # Show data for the current day
+            interval = "5m"  # Use 5-minute interval for intraday
+        else:
+            period = "3d"  # Show data for the past 3 days
+            interval = "1h"  # Use 1-hour interval for 3-day view
+
+        df = get_stock_data(ticker, period=period, interval=interval)
         if df.empty:
             time.sleep(120)
             st.rerun()
