@@ -82,12 +82,15 @@ def generate_signals(df):
                 st.error("RSI, MACD, or MACD_Signal columns not found in DataFrame.")
                 return df
 
-        df["Buy_Signal"] = buy_signals
-        df["Sell_Signal"] = sell_signals
+        # Create new columns directly.  This is the key fix.
+        df["Buy_Signal"] = pd.Series(buy_signals, index=df.index)
+        df["Sell_Signal"] = pd.Series(sell_signals, index=df.index)
         return df
     except Exception as e:
         st.error(f"Error generating signals: {e}")
         return df
+
+
 
 # Streamlit UI
 st.title("📈 Real-time Stock Tracker with AI-based Signals")
