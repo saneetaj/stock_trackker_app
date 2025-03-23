@@ -207,12 +207,12 @@ if not st.session_state.stop_tracking:
     for ticker in st.session_state.tracked_tickers:
         df = get_stock_data(ticker, period="1y", interval="1h")
         if df.empty:
-            time.sleep(15)
+            time.sleep(120)
             st.rerun()
         df = add_technical_indicators(df)
         if df.empty:
             st.error(f"No data available for {ticker}. Please check the ticker symbol and try again.")
-            time.sleep(15)
+            time.sleep(120)
             st.rerun()
         df = generate_signals(df)
         all_dfs[ticker] = df
@@ -326,5 +326,5 @@ if not st.session_state.stop_tracking:
                 else:
                     st.write(f"AI Recommendation for {ticker}: No Action.   Reasons: No strong buy or sell signals detected.")
 
-        time.sleep(15)
+        time.sleep(120)
         st.rerun()
