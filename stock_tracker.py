@@ -166,7 +166,7 @@ def backtest(df, rsi_window, macd_fast, macd_slow, macd_signal_window, initial_c
           profit_factor = 0
         return total_profit, profit_factor, max_drawdown, positions #returning the positions
     except Exception as e:
-        st.error(f"Error in backtest: {e}")
+        st.error(f"Error in backtest: {e} with parameters (RSI={rsi_window}, MACD Fast={macd_fast}, MACD Slow={macd_slow}, Signal={macd_signal_window})")
         return 0, 0, 0, []
 
 
