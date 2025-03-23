@@ -111,23 +111,24 @@ placeholder = st.empty()  # Placeholder for updating content dynamically
 # Update session state based on button clicks
 if start_tracking_button:
     st.session_state.stop_tracking = False
-    st.session_state.start_tracking = True #redundant
+    st.session_state.start_tracking = True
     st.rerun()  # Force a rerun to start the loop
 
 if stop_tracking_button:
     st.session_state.stop_tracking = True
-    st.session_state.start_tracking = False #redundant
+    st.session_state.start_tracking = False
     st.rerun()  # Stop loop and show stopped message
 
+
 # Real-time tracking loop
-if not st.session_state.stop_tracking: # Only run if not stopped
+if not st.session_state.stop_tracking:
     while True:
         df = get_stock_data(ticker)
         if df.empty:
             time.sleep(15)
-            continue  # Skip the rest of the loop if no data
+            continue
         df = add_technical_indicators(df)
-        df = generate_signals(df)  # Add buy/sell signals
+        df = generate_signals(df)
         sentiment = get_market_sentiment(ticker)
 
         # Create plot
@@ -152,30 +153,37 @@ if not st.session_state.stop_tracking: # Only run if not stopped
             fig.add_trace(go.Scatter(x=df.index, y=df["BB_High"], mode="lines", name="BB High", line=dict(color='green')))
             fig.add_trace(go.Scatter(x=df.index, y=df["BB_Low"], mode="lines", name="BB Low", line=dict(color='red')))
 
-        # Buy Signals (🔵)
+        # Buy Signals (🔵) - Changed to lines
         if "Buy_Signal" in df:
-            fig.add_trace(go.Scatter(
-                x=df.index, y=df["Buy_Signal"], mode="markers", name="BUY Signal",
-                marker=dict(symbol="triangle-up", size=10, color="blue")
-            ))
+            buy_signal_data = df[df["Buy_Signal"].notnull()]
+            if not buy_signal_data.empty:
+                fig.add_trace(go.Scatter(
+                    x=buy_signal_data.index,
+                    y=buy_signal_data["Buy_Signal"],
+                    mode="lines",  # Changed to "lines"
+                    name="BUY Signal",
+                    line=dict(color="blue", width=2),  # Added line style
+                ))
 
-        # Sell Signals (🔴)
+        # Sell Signals (🔴) - Changed to lines
         if "Sell_Signal" in df:
-            fig.add_trace(go.Scatter(
-                x=df.index, y=df["Sell_Signal"], mode="markers", name="SELL Signal",
-                marker=dict(symbol="triangle-down", size=10, color="red")
-            ))
+            sell_signal_data = df[df["Sell_Signal"].notnull()]
+            if not sell_signal_data.empty:
+                fig.add_trace(go.Scatter(
+                    x=sell_signal_data.index,
+                    y=sell_signal_data["Sell_Signal"],
+                    mode="lines",  # Changed to "lines"
+                    name="SELL Signal",
+                    line=dict(color="red", width=2),  # Added line style
+                ))
 
         # Update layout
         fig.update_layout(title=f"{ticker} Stock Performance", xaxis_rangeslider_visible=False)
 
         # Display chart and signals
         with placeholder.container():
-            st.plotly_chart(fig, key=f"chart_{time.time()}")  # Ensure a unique key to prevent duplicate IDs
+            st.plotly_chart(fig, key=f"chart_{time.time()}")
             st.write(f"**Market Sentiment Score:** {sentiment} (Higher is better)")
 
-        time.sleep(15)  # Refresh every 15 seconds
-        st.rerun()  # Forces a rerun for real-time updates
-
-if st.session_state.stop_tracking:
-    st.write("Tracking stopped.")
+        time.sleep(15)
+        st.rerun()
