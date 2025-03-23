@@ -8,8 +8,9 @@ import requests
 from bs4 import BeautifulSoup
 import plotly.graph_objects as go
 
-# Global flag for stopping the tracking
-stop_tracking = False
+# Initialize session state for stop tracking button
+if "stop_tracking" not in st.session_state:
+    st.session_state.stop_tracking = False
 
 # Function to fetch stock data
 def get_stock_data(ticker):
@@ -63,13 +64,14 @@ ticker = st.text_input("Enter Stock Ticker (e.g., AAPL, TSLA, MSFT):", "AAPL")
 
 # Button to stop tracking
 if st.button("Stop Tracking"):
-    stop_tracking = True
+    st.session_state.stop_tracking = True
 
 st.write("Tracking will refresh every 15 seconds...")
 
-placeholder = st.empty()
+placeholder = st.empty()  # Placeholder for updating content dynamically
 
-while not stop_tracking:
+# Real-time tracking loop
+while not st.session_state.stop_tracking:
     df = get_stock_data(ticker)
     df = add_technical_indicators(df)
     signal = generate_signals(df)
@@ -94,8 +96,9 @@ while not stop_tracking:
     
     # Display chart and signals
     with placeholder.container():
-        st.plotly_chart(fig)
+        st.plotly_chart(fig, key=f"chart_{time.time()}")  # Ensure a unique key to prevent duplicate IDs
         st.write(f"**Technical Indicator Signal:** {signal}")
         st.write(f"**Market Sentiment Score:** {sentiment} (Higher is better)")
     
     time.sleep(15)  # Refresh every 15 seconds
+    st.rerun()  # Forces a rerun for real-time updates
