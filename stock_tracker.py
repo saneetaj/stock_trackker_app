@@ -55,10 +55,11 @@ def get_market_sentiment(ticker):
 
 # Function to generate buy/sell signals based on indicators & sentiment
 def generate_signals(df, sentiment_score):
-    buy_signals = pd.Series(index=df.index, dtype='float64')  # Initialize as NaN
-    sell_signals = pd.Series(index=df.index, dtype='float64')  # Initialize as NaN
+    # Ensure Buy_Signal and Sell_Signal columns exist with NaN values
+    df["Buy_Signal"] = np.nan
+    df["Sell_Signal"] = np.nan
 
-    for i in range(1, len(df)):  # Start from index 1
+    for i in range(1, len(df)):  # Avoid index errors at i=0
         buy_signal = False
         sell_signal = False
 
@@ -70,20 +71,18 @@ def generate_signals(df, sentiment_score):
 
         # Adjust signals based on market sentiment
         if sentiment_score > 0:
-            buy_signal = buy_signal or (sentiment_score > 2)  # Strong sentiment creates buy
+            buy_signal = buy_signal or (sentiment_score > 2)  # Strong sentiment = buy
         elif sentiment_score < 0:
-            sell_signal = sell_signal or (sentiment_score < -2)  # Strong negative sentiment triggers sell
+            sell_signal = sell_signal or (sentiment_score < -2)  # Negative sentiment = sell
 
-        # Store signals
+        # Store signals in DataFrame
         if buy_signal:
-            buy_signals.iloc[i] = df["Close"].iloc[i]  # Mark buy signal
+            df.at[df.index[i], "Buy_Signal"] = df["Close"].iloc[i]  # Assign value directly to index
         if sell_signal:
-            sell_signals.iloc[i] = df["Close"].iloc[i]  # Mark sell signal
+            df.at[df.index[i], "Sell_Signal"] = df["Close"].iloc[i]
 
-    df["Buy_Signal"] = buy_signals
-    df["Sell_Signal"] = sell_signals
     return df
-
+    
 # Streamlit UI
 st.title("📈 AI-powered Stock Tracker with Buy/Sell Signals")
 
