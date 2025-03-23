@@ -55,8 +55,8 @@ def get_market_sentiment(ticker):
 
 # Function to generate buy/sell signals based on indicators & sentiment
 def generate_signals(df, sentiment_score):
-    buy_signals = [None] * len(df)  # Initialize with None
-    sell_signals = [None] * len(df) # Initialize with None
+    buy_signals = pd.Series(index=df.index, dtype='float64')  # Initialize as NaN
+    sell_signals = pd.Series(index=df.index, dtype='float64')  # Initialize as NaN
 
     for i in range(1, len(df)):  # Start from index 1
         buy_signal = False
@@ -70,15 +70,15 @@ def generate_signals(df, sentiment_score):
 
         # Adjust signals based on market sentiment
         if sentiment_score > 0:
-            buy_signal = buy_signal or (sentiment_score > 2)  # Strong sentiment can create buy
+            buy_signal = buy_signal or (sentiment_score > 2)  # Strong sentiment creates buy
         elif sentiment_score < 0:
-            sell_signal = sell_signal or (sentiment_score < -2)  # Strong negative sentiment can trigger sell
+            sell_signal = sell_signal or (sentiment_score < -2)  # Strong negative sentiment triggers sell
 
         # Store signals
         if buy_signal:
-            buy_signals[i] = df["Close"].iloc[i]  # Set buy signal price
+            buy_signals.iloc[i] = df["Close"].iloc[i]  # Mark buy signal
         if sell_signal:
-            sell_signals[i] = df["Close"].iloc[i]  # Set sell signal price
+            sell_signals.iloc[i] = df["Close"].iloc[i]  # Mark sell signal
 
     df["Buy_Signal"] = buy_signals
     df["Sell_Signal"] = sell_signals
