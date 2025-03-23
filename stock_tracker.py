@@ -189,20 +189,10 @@ placeholder = st.empty()
 
 # Update session state based on button clicks
 if start_tracking_button:
-    if ticker != st.session_state.tracking_ticker:  # Check if the ticker has changed.
-        st.session_state.selected_indicators = []  # Reset to default: all unchecked.
-        # Reset all the checkbox values
-        st.session_state.ema_20_checkbox = False
-        st.session_state.rsi_checkbox = False
-        st.session_state.macd_checkbox = False
-        st.session_state.bb_checkbox = False
-        st.session_state.adx_checkbox = False
-        st.session_state.vwap_checkbox = False
-
     st.session_state.stop_tracking = False
     st.session_state.start_tracking = True
     st.session_state.tracking_ticker = ticker  # Store the ticker
-    st.rerun()  # Rerun to update the UI
+    st.rerun()
 elif stop_tracking_button:
     st.session_state.stop_tracking = True
     st.session_state.start_tracking = False
@@ -333,3 +323,4 @@ if not st.session_state.stop_tracking:
 
         time.sleep(15)
         st.rerun()
+
