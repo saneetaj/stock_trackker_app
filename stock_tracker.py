@@ -72,21 +72,26 @@ def generate_signals(df):
         # Initialize lists with the same length as df
         buy_signals = [None] * len(df)
         sell_signals = [None] * len(df)
+        buy_prices = [None] * len(df)  # Store buy prices
+        sell_prices = [None] * len(df)  # Store sell prices
 
         for i in range(1, len(df)):  # Avoid index errors at i=0
-            if "RSI" in df and "MACD" in df and "MACD_Signal" in df: # Check if the columns exist
+            if "RSI" in df and "MACD" in df and "MACD_Signal" in df:
                 if df["RSI"].iloc[i] < 30 and df["MACD"].iloc[i] > df["MACD_Signal"].iloc[i]:
-                    buy_signals[i] = df["Close"].iloc[i]
-
+                    buy_signals[i] = 1 # df["Close"].iloc[i]
+                    buy_prices[i] = df["Close"].iloc[i]
                 elif df["RSI"].iloc[i] > 70 and df["MACD"].iloc[i] < df["MACD_Signal"].iloc[i]:
-                    sell_signals[i] = df["Close"].iloc[i]
+                    sell_signals[i] = 1 #df["Close"].iloc[i]
+                    sell_prices[i] = df["Close"].iloc[i]
             else:
                 st.error("RSI, MACD, or MACD_Signal columns not found in DataFrame.")
                 return df
 
-        # Create new columns directly.  This is the key fix.
+        # Create new columns directly.
         df["Buy_Signal"] = pd.Series(buy_signals, index=df.index)
         df["Sell_Signal"] = pd.Series(sell_signals, index=df.index)
+        df["Buy_Price"] = pd.Series(buy_prices, index=df.index) #store prices
+        df["Sell_Price"] = pd.Series(sell_prices, index=df.index)
         return df
     except Exception as e:
         st.error(f"Error generating signals: {e}")
@@ -153,7 +158,7 @@ if not st.session_state.stop_tracking:
             fig.add_trace(go.Scatter(x=df.index, y=df["BB_High"], mode="lines", name="Bollinger High", line=dict(color='green')))
             fig.add_trace(go.Scatter(x=df.index, y=df["BB_Low"], mode="lines", name="Bollinger Low", line=dict(color='red')))
 
-        # Buy Signals (🔵) - Changed to vertical dotted lines
+       # Buy Signals (🔵) - Changed to vertical dotted lines
         if "Buy_Signal" in df:
             buy_signal_data = df[df["Buy_Signal"].notnull()]
             if not buy_signal_data.empty:
@@ -162,14 +167,24 @@ if not st.session_state.stop_tracking:
                         type="line",
                         x0=index,
                         x1=index,
-                        y0=df['Low'].min(),  # Extend line from bottom
-                        y1=df['High'].max(), # to the top
+                        y0=df['Low'].min(),
+                        y1=df['High'].max(),
                         line=dict(
                             color="blue",
                             width=2,
-                            dash="dot",  # Use a dotted line
+                            dash="dot",
                         ),
-                        name="Buy Signal", # Changed name
+                        name="Buy Signal",
+                    )
+                    # Display Buy Price
+                    fig.add_annotation(
+                        x=index,
+                        y=df['High'].max(),  # Position above the line
+                        text=f"Buy: {row['Buy_Price']:.2f}",
+                        showarrow=False,
+                        xanchor="left",
+                        yanchor="bottom",
+                        font=dict(size=10, color="blue"),
                     )
 
         # Sell Signals (🔴) - Changed to vertical dotted lines
@@ -188,7 +203,17 @@ if not st.session_state.stop_tracking:
                             width=2,
                             dash="dot",
                         ),
-                        name="Sell Signal", # Changed Name
+                        name="Sell Signal",
+                    )
+                    # Display Sell Price
+                    fig.add_annotation(
+                        x=index,
+                        y=df['High'].max(),  # Position above the line
+                        text=f"Sell: {row['Sell_Price']:.2f}",
+                        showarrow=False,
+                        xanchor="left",
+                        yanchor="bottom",
+                        font=dict(size=10, color="red"),
                     )
 
         # Update layout
