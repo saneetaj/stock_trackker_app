@@ -207,8 +207,8 @@ if not st.session_state.stop_tracking:
     for ticker in st.session_state.tracked_tickers:
         # Determine the period based on the day of the week
         now = datetime.now()
-        period = "1mo"  # Show data for the past 1 month
-        interval = "1h"  # Use 1-hour interval for 1-month view
+        period = "6mo"  # Show data for the past 6 months
+        interval = "1d"  # Use 1-day interval for 6-month view
 
         df = get_stock_data(ticker, period=period, interval=interval)
         if df.empty:
@@ -293,7 +293,7 @@ if not st.session_state.stop_tracking:
                         x1=index,
                         y0=df['Low'].min(),
                         y1=df['High'].max(),
-                        line=dict(color="red", width=2, dash="dot"),
+                        line=dict(color="red", width="2", dash="dot"),
                         name="Sell Signal"
                     )
                     fig.add_annotation(
