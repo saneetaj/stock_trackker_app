@@ -105,7 +105,7 @@ st.title("📈 Real-time Stock Tracker with AI-based Signals")
 ticker = st.text_input("Enter Stock Ticker (e.g., AAPL, TSLA, MSFT):", "AAPL")
 
 # Buttons for starting and stopping tracking
-col1, col2 = st.columns(2)  # Divide button layout into two columns
+col1, col2 = st.columns([1, 1])  # Adjust the column widths to bring buttons closer
 with col1:
     start_tracking_button = st.button("Start Tracking")
 with col2:
@@ -158,7 +158,7 @@ if not st.session_state.stop_tracking:
             fig.add_trace(go.Scatter(x=df.index, y=df["BB_High"], mode="lines", name="Bollinger High", line=dict(color='green')))
             fig.add_trace(go.Scatter(x=df.index, y=df["BB_Low"], mode="lines", name="Bollinger Low", line=dict(color='red')))
 
-       # Buy Signals (🔵) - Changed to vertical dotted lines
+        # Buy Signals (🔵) - Changed to vertical dotted lines
         if "Buy_Signal" in df:
             buy_signal_data = df[df["Buy_Signal"].notnull()]
             if not buy_signal_data.empty:
