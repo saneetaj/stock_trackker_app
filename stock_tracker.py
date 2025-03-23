@@ -176,13 +176,16 @@ def optimize_parameters(df):
         for macd_fast in macd_fasts:
             for macd_slow in macd_slows:
                 for macd_signal_window in macd_signal_windows:
-                    profit, profit_factor, max_drawdown, positions = backtest(df.copy(), rsi_window, macd_fast, macd_slow, macd_signal_window)
-                    if profit_factor > best_profit_factor:
-                        best_profit_factor = profit_factor
-                        best_rsi_window = rsi_window
-                        best_macd_fast = macd_fast
-                        best_macd_slow = macd_slow
-                        best_macd_signal_window = macd_signal_window
+                    try:
+                        profit, profit_factor, max_drawdown, positions = backtest(df.copy(), rsi_window, macd_fast, macd_slow, macd_signal_window)
+                        if profit_factor > best_profit_factor:
+                            best_profit_factor = profit_factor
+                            best_rsi_window = rsi_window
+                            best_macd_fast = macd_fast
+                            best_macd_slow = macd_slow
+                            best_macd_signal_window = macd_signal_window
+                    except Exception as e:
+                        st.error(f"Error in backtest with parameters (RSI={rsi_window}, MACD Fast={macd_fast}, MACD Slow={macd_slow}, Signal={macd_signal_window}): {e}")
     return best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window, best_profit_factor
 
 # Streamlit UI
