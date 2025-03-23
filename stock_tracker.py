@@ -49,26 +49,19 @@ def get_market_sentiment(ticker):
 
 # Function to generate buy/sell signals
 def generate_signals(df):
-    # Initialize signals with NaN values
-    df["Buy_Signal"] = np.nan
-    df["Sell_Signal"] = np.nan
+    # Initialize lists with the same length as df
+    buy_signals = [None] * len(df)
+    sell_signals = [None] * len(df)
 
     for i in range(1, len(df)):  # Avoid index errors at i=0
-        buy_signal = None
-        sell_signal = None
-
-        # Buy condition: RSI below 30 & MACD above MACD_Signal
         if df["RSI"].iloc[i] < 30 and df["MACD"].iloc[i] > df["MACD_Signal"].iloc[i]:
-            buy_signal = df["Close"].iloc[i]
+            buy_signals[i] = df["Close"].iloc[i]
 
-        # Sell condition: RSI above 70 & MACD below MACD_Signal
         elif df["RSI"].iloc[i] > 70 and df["MACD"].iloc[i] < df["MACD_Signal"].iloc[i]:
-            sell_signal = df["Close"].iloc[i]
+            sell_signals[i] = df["Close"].iloc[i]
 
-        # Store signals in DataFrame
-        df.at[df.index[i], "Buy_Signal"] = buy_signal
-        df.at[df.index[i], "Sell_Signal"] = sell_signal
-
+    df["Buy_Signal"] = buy_signals
+    df["Sell_Signal"] = sell_signals
     return df
 
 # Streamlit UI
