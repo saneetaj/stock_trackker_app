@@ -119,6 +119,10 @@ def backtest(df, rsi_window, macd_fast, macd_slow, macd_signal_window, initial_c
         if df.empty or not all(col in df for col in ["Open", "High", "Low", "Close", "Volume"]):
             raise ValueError("Invalid DataFrame: Missing data or empty.")
 
+        st.write(f"Backtest Parameters: RSI Window = {rsi_window}, MACD Fast = {macd_fast}, MACD Slow = {macd_slow}, MACD Signal = {macd_signal_window}") #parameter logging
+        st.write("Backtest DataFrame:") #df logging
+        st.write(df.head())
+        
         df = generate_signals(df, rsi_window, macd_fast, macd_slow, macd_signal_window)
         
         positions = []
@@ -181,6 +185,10 @@ def optimize_parameters(df):
     
     if df is None or df.empty:
         st.error("Error: optimize_parameters received an empty DataFrame.")
+        return None, None, None, None, 0
+    
+    if not isinstance(df, pd.DataFrame):
+        st.error("Error: optimize_parameters received data that is not a DataFrame.")
         return None, None, None, None, 0
     
     for rsi_window in rsi_windows:
