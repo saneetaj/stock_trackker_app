@@ -257,9 +257,7 @@ if not st.session_state.stop_tracking:
     df = add_technical_indicators(df)
     
     # Optimize parameters
-    best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window, best_profit_factor = optimize_parameters(df.copy())
-    st.write(f"Optimized Parameters: RSI Window = {best_rsi_window}, MACD Fast = {best_macd_fast}, MACD Slow = {best_macd_slow}, MACD Signal = {best_macd_signal_window}") #show params
-    st.write(f"Optimized Profit Factor: {best_profit_factor:.2f}") # show profit factor
+    best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window = optimize_parameters(df.copy())
     
     df = generate_signals(df, best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window)
     sentiment = get_market_sentiment(ticker)
@@ -270,6 +268,14 @@ if not st.session_state.stop_tracking:
         st.write(f"Current MACD: {df['MACD'].iloc[-1]:.2f}, Signal: {df['MACD_Signal'].iloc[-1]:.2f}")
         st.write(f"Current ADX: {df['ADX'].iloc[-1]:.2f}")
         st.write(f"Current Close: {df['Close'].iloc[-1]:.2f}, VWAP: {df['VWAP'].iloc[-1]:.2f}")
+
+        # Check for buy/sell signals and display them
+        if df["Buy_Signal"].iloc[-1] == 1:
+            st.write(f"Buy Signal for {ticker} at {df['Close'].iloc[-1]:.2f}")
+        elif df["Sell_Signal"].iloc[-1] == 1:
+            st.write(f"Sell Signal for {ticker} at {df['Close'].iloc[-1]:.2f}")
+        else:
+            st.write(f"No Buy/Sell Signal for {ticker}")
 
     # Create plot
     fig = go.Figure()
