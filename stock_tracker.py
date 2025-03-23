@@ -163,14 +163,21 @@ placeholder = st.empty()
 
 # Update session state based on button clicks
 if start_tracking_button:
+    if ticker != st.session_state.tracking_ticker:  #check if the ticker has changed.
+        st.session_state.selected_indicators = [] #if the ticker is different, reset the selected indicators.
     st.session_state.stop_tracking = False
     st.session_state.start_tracking = True
+    st.session_state.tracking_ticker = ticker #store the ticker
     st.rerun()
 
 if stop_tracking_button:
     st.session_state.stop_tracking = True
     st.session_state.start_tracking = False
     st.rerun()
+
+# Store the ticker in session state
+if "tracking_ticker" not in st.session_state:
+    st.session_state.tracking_ticker = ticker
 
 # Real-time tracking loop
 if not st.session_state.stop_tracking:
@@ -189,14 +196,14 @@ if not st.session_state.stop_tracking:
     df = generate_signals(df)
     sentiment = get_market_sentiment(ticker)
 
-    # Add checkboxes for indicators
+    # Add checkboxes for indicators in the sidebar
     st.sidebar.subheader("Select Technical Indicators")
-    ema_20_selected = st.sidebar.checkbox("EMA 20", key="ema_20_checkbox")
-    rsi_selected = st.sidebar.checkbox("RSI", key="rsi_checkbox")
-    macd_selected = st.sidebar.checkbox("MACD", key="macd_checkbox")
-    bb_selected = st.sidebar.checkbox("Bollinger Bands", key="bb_checkbox")
-    adx_selected = st.sidebar.checkbox("ADX", key="adx_checkbox")
-    vwap_selected = st.sidebar.checkbox("VWAP", key="vwap_checkbox")
+    ema_20_selected = st.sidebar.checkbox("EMA 20", value=("EMA_20" in st.session_state.selected_indicators), key="ema_20_checkbox")
+    rsi_selected = st.sidebar.checkbox("RSI", value=("RSI" in st.session_state.selected_indicators), key="rsi_checkbox")
+    macd_selected = st.sidebar.checkbox("MACD", value=("MACD" in st.session_state.selected_indicators), key="macd_checkbox")
+    bb_selected = st.sidebar.checkbox("Bollinger Bands", value=("BB_High" in st.session_state.selected_indicators or "BB_Mid" in st.session_state.selected_indicators or "BB_Low" in st.session_state.selected_indicators), key="bb_checkbox")
+    adx_selected = st.sidebar.checkbox("ADX", value=("ADX" in st.session_state.selected_indicators), key="adx_checkbox")
+    vwap_selected = st.sidebar.checkbox("VWAP", value=("VWAP" in st.session_state.selected_indicators), key="vwap_checkbox")
 
     # Store selected indicators in session state
     st.session_state.selected_indicators = []
@@ -277,7 +284,11 @@ if not st.session_state.stop_tracking:
             )
 
     # Update layout
-    fig.update_layout(title=f"{ticker} Stock Performance", xaxis_rangeslider_visible=False)
+    fig.update_layout(
+        title=f"{ticker} Stock Performance",
+        xaxis_rangeslider_visible=False,
+        showlegend=True  # Enable the legend
+    )
 
     # Display chart and signals
     with placeholder.container():
