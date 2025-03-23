@@ -119,19 +119,18 @@ def backtest(df, rsi_window, macd_fast, macd_slow, macd_signal_window, initial_c
     
     positions = []
     capital = initial_capital
+    buy_price = 0  # Initialize buy_price here to avoid NameError.  This is CRUCIAL
     
     for i in range(len(df)):
         if df["Buy_Signal"].iloc[i] == 1 and not positions:
             positions.append(("Buy", df["Close"].iloc[i], capital / df["Close"].iloc[i], i))  # (Buy/Sell, Price, Quantity, Index)
             capital = 0
+            buy_price = df["Close"].iloc[i] # Capture buy price
         elif df["Sell_Signal"].iloc[i] == 1 and positions:
-            buy_price = positions[0][1]
             quantity = positions[0][2]
             capital = quantity * df["Close"].iloc[i]
             positions.append(("Sell", df["Close"].iloc[i], quantity, i))
             positions = []  # Clear positions after selling
-        elif not positions:
-            buy_price = 0 #Added this line.
 
     if positions: # Handle any open positions at the end
         final_price = df["Close"].iloc[-1]
