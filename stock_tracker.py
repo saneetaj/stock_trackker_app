@@ -34,7 +34,7 @@ def add_technical_indicators(df):
         df["RSI"] = ta.momentum.rsi(df["Close"], window=14)
         df["MACD"] = ta.trend.macd(df["Close"])
         df["MACD_Signal"] = ta.trend.macd_signal(df["Close"])
-        df["BB_High"], df["BB_Mid"], df["BB_Low"] = ta.volatility.bollinger_hband(df["Close"]), ta.volatility.bollinger_mavg(df["Close"]), ta.vollinger_lband(df["Close"])
+        df["BB_High"], df["BB_Mid"], df["BB_Low"] = ta.volatility.bollinger_hband(df["Close"]), ta.volatility.bollinger_mavg(df["Close"]), ta.volatility.bollinger_lband(df["Close"])
         df["ADX"] = ta.trend.adx(df["High"], df["Low"], df["Close"])  # Added ADX
         df["VWAP"] = ta.volume.volume_weighted_average_price(df["High"], df["Low"], df["Close"], df["Volume"]) # Added VWAP
         return df
@@ -102,7 +102,7 @@ def generate_signals(df, rsi_window, macd_fast, macd_slow, macd_signal_window): 
                     sell_prices[i] = df["Close"].iloc[i]
             else:
                 st.error("Required columns not found in DataFrame.")
-                return df
+                return pd.DataFrame() # Return empty df
 
         df["Buy_Signal"] = pd.Series(buy_signals, index=df.index)
         df["Sell_Signal"] = pd.Series(sell_signals, index=df.index)
@@ -116,8 +116,8 @@ def generate_signals(df, rsi_window, macd_fast, macd_slow, macd_signal_window): 
 # Function for backtesting
 def backtest(df, rsi_window, macd_fast, macd_slow, macd_signal_window, initial_capital=10000):
     try:
-        if df.empty or not all(col in df for col in ["Open", "High", "Low", "Close", "Volume"]):
-            raise ValueError("Invalid DataFrame: Missing data or empty.")
+        if df.empty or not all(col in df for col in ["Open", "High", "Low", "Close", "Volume", "RSI", "MACD", "MACD_Signal", "ADX", "VWAP"]):
+            raise ValueError("Invalid DataFrame: Missing data or empty, or missing required columns.")
 
         #st.write(f"Backtest Parameters: RSI Window = {rsi_window}, MACD Fast = {macd_fast}, MACD Slow = {macd_slow}, MACD Signal = {macd_signal_window}") #parameter logging
         #st.write("Backtest DataFrame:") #df logging
