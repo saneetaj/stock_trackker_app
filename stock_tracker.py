@@ -191,6 +191,11 @@ def optimize_parameters(df):
             for macd_slow in macd_slows:
                 for macd_signal_window in macd_signal_windows:
                     try:
+                        # Before calling backtest, check if df is valid
+                        if df.empty or not all(col in df for col in ["Open", "High", "Low", "Close", "Volume"]):
+                            st.error(f"Invalid DataFrame before backtest with parameters (RSI={rsi_window}, MACD Fast={macd_fast}, MACD Slow={macd_slow}, Signal={macd_signal_window})")
+                            return None, None, None, None, 0  # Return a default value
+
                         profit, profit_factor, max_drawdown, positions = backtest(df.copy(), rsi_window, macd_fast, macd_slow, macd_signal_window)
                         if profit_factor > best_profit_factor:
                             best_profit_factor = profit_factor
@@ -200,6 +205,7 @@ def optimize_parameters(df):
                             best_macd_signal_window = macd_signal_window
                     except Exception as e:
                         st.error(f"Error in backtest with parameters (RSI={rsi_window}, MACD Fast={macd_fast}, MACD Slow={macd_slow}, Signal={macd_signal_window}): {e}")
+                        return None, None, None, None, 0 # Return default
     return best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window, best_profit_factor
 
 # Streamlit UI
@@ -281,130 +287,131 @@ if not st.session_state.stop_tracking:
     # Optimize parameters
     best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window, profit_factor = optimize_parameters(df.copy())
     
-    df = generate_signals(df, best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window)
-    sentiment = get_market_sentiment(ticker)
-
-    # Debugging: Print indicator values
-    if not df.empty:
-        st.write(f"Current RSI: {df['RSI'].iloc[-1]:.2f}")
-        st.write(f"Current MACD: {df['MACD'].iloc[-1]:.2f}, Signal: {df['MACD_Signal'].iloc[-1]:.2f}")
-        st.write(f"Current ADX: {df['ADX'].iloc[-1]:.2f}")
-        st.write(f"Current Close: {df['Close'].iloc[-1]:.2f}, VWAP: {df['VWAP'].iloc[-1]:.2f}")
-
-        # Check for buy/sell signals and display them
-        if df["Buy_Signal"].iloc[-1] == 1:
-            st.write(f"Buy Signal for {ticker} at {df['Close'].iloc[-1]:.2f}")
-        elif df["Sell_Signal"].iloc[-1] == 1:
-            st.write(f"Sell Signal for {ticker} at {df['Close'].iloc[-1]:.2f}")
-        else:
-            st.write(f"No Buy/Sell Signal for {ticker}")
-
-    # Create plot
-    fig = go.Figure()
-
-    # Candlestick chart
-    fig.add_trace(go.Candlestick(
-        x=df.index,
-        open=df['Open'],
-        high=df['High'],
-        low=df['Low'],
-        close=df['Close'],
-        name="Candlesticks"
-    ))
-
-    # EMA 20
-    if "EMA_20" in df:
-        fig.add_trace(go.Scatter(x=df.index, y=df["EMA_20"], mode="lines", name="EMA 20", line=dict(color='blue')))
-
-    # Bollinger Bands
-    if "BB_High" in df and "BB_Low" in df:
-        fig.add_trace(go.Scatter(x=df.index, y=df["BB_High"], mode="lines", name="Bollinger High", line=dict(color='green')))
-        fig.add_trace(go.Scatter(x=df.index, y=df["BB_Low"], mode="lines", name="Bollinger Low", line=dict(color='red')))
-    
-    if "VWAP" in df:
-        fig.add_trace(go.Scatter(x=df.index, y=df["VWAP"], mode="lines", name="VWAP", line=dict(color='purple'))) #add vwap
-
-    # Buy Signals (🔵) - Changed to vertical dotted lines
-    if "Buy_Signal" in df:
-        buy_signal_data = df[df["Buy_Signal"].notnull()]
-        if not buy_signal_data.empty:
-            for index, row in buy_signal_data.iterrows():
-                fig.add_shape(
-                    type="line",
-                    x0=index,
-                    x1=index,
-                    y0=df['Low'].min(),
-                    y1=df['High'].max(),
-                    line=dict(
-                        color="blue",
-                        width=2,
-                        dash="dot",
-                    ),
-                    name="Buy Signal",
-                )
-                # Display Buy Price
-                fig.add_annotation(
-                    x=index,
-                    y=df['High'].max(),
-                    text=f"Buy: {row['Buy_Price']:.2f}",
-                    showarrow=False,
-                    xanchor="left",
-                    yanchor="bottom",
-                    font=dict(size=10, color="blue"),
-                )
-
-    # Sell Signals (🔴) - Changed to vertical dotted lines
-    if "Sell_Signal" in df:
-        sell_signal_data = df[df["Sell_Signal"].notnull()]
-        if not sell_signal_data.empty:
-            for index, row in sell_signal_data.iterrows():
-                fig.add_shape(
-                    type="line",
-                    x0=index,
-                    x1=index,
-                    y0=df['Low'].min(),
-                    y1=df['High'].max(),
-                    line=dict(
-                        color="red",
-                        width=2,
-                        dash="dot",
-                    ),
-                    name="Sell Signal",
-                )
-                # Display Sell Price
-                fig.add_annotation(
-                    x=index,
-                    y=df['High'].max(),
-                    text=f"Sell: {row['Sell_Price']:.2f}",
-                    showarrow=False,
-                    xanchor="left",
-                    yanchor="bottom",
-                    font=dict(size=10, color="red"),
-                )
-
-        # Backtest and display results
-        (best_rsi_window, 
-         best_macd_fast, 
-         best_macd_slow, 
-         best_macd_signal_window, 
-         profit_factor) = optimize_parameters(df.copy()) # Get results
+    # Check if optimize_parameters returned valid values
+    if best_rsi_window is not None and best_macd_fast is not None and best_macd_slow is not None and best_macd_signal_window is not None:
         
-        profit, profit_factor, max_drawdown, positions = backtest(df.copy(), best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window) # Pass the parameters to backtest
-        st.write("Backtesting Results:")
-        st.write(f"  Total Profit: {profit:.2f}")
-        st.write(f"  Profit Factor: {profit_factor:.2f}")
-        st.write(f"  Max Drawdown: {max_drawdown:.2f}")
-        st.write("  Trades:")
-        for trade in positions:
-            st.write(f"    {trade[0]} at {trade[1]:.2f} on {df.index[trade[3]]}")
+        df = generate_signals(df, best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window)
+        sentiment = get_market_sentiment(ticker)
 
-    # Update layout
-    fig.update_layout(title=f"{ticker} Stock Performance", xaxis_rangeslider_visible=False)
+        # Debugging: Print indicator values
+        if not df.empty:
+            st.write(f"Current RSI: {df['RSI'].iloc[-1]:.2f}")
+            st.write(f"Current MACD: {df['MACD'].iloc[-1]:.2f}, Signal: {df['MACD_Signal'].iloc[-1]:.2f}")
+            st.write(f"Current ADX: {df['ADX'].iloc[-1]:.2f}")
+            st.write(f"Current Close: {df['Close'].iloc[-1]:.2f}, VWAP: {df['VWAP'].iloc[-1]:.2f}")
 
-    # Display chart and signals
-    with placeholder.container():
-        st.plotly_chart(fig, key=f"chart_{time.time()}")
-        st.write(f"**Market Sentiment Score:** {sentiment} (Higher is better)")
+            # Check for buy/sell signals and display them
+            if df["Buy_Signal"].iloc[-1] == 1:
+                st.write(f"Buy Signal for {ticker} at {df['Close'].iloc[-1]:.2f}")
+            elif df["Sell_Signal"].iloc[-1] == 1:
+                st.write(f"Sell Signal for {ticker} at {df['Close'].iloc[-1]:.2f}")
+            else:
+                st.write(f"No Buy/Sell Signal for {ticker}")
 
+        # Create plot
+        fig = go.Figure()
+
+        # Candlestick chart
+        fig.add_trace(go.Candlestick(
+            x=df.index,
+            open=df['Open'],
+            high=df['High'],
+            low=df['Low'],
+            close=df['Close'],
+            name="Candlesticks"
+        ))
+
+        # EMA 20
+        if "EMA_20" in df:
+            fig.add_trace(go.Scatter(x=df.index, y=df["EMA_20"], mode="lines", name="EMA 20", line=dict(color='blue')))
+
+        # Bollinger Bands
+        if "BB_High" in df and "BB_Low" in df:
+            fig.add_trace(go.Scatter(x=df.index, y=df["BB_High"], mode="lines", name="Bollinger High", line=dict(color='green')))
+            fig.add_trace(go.Scatter(x=df.index, y=df["BB_Low"], mode="lines", name="Bollinger Low", line=dict(color='red')))
+        
+        if "VWAP" in df:
+            fig.add_trace(go.Scatter(x=df.index, y=df["VWAP"], mode="lines", name="VWAP", line=dict(color='purple'))) #add vwap
+
+        # Buy Signals (🔵) - Changed to vertical dotted lines
+        if "Buy_Signal" in df:
+            buy_signal_data = df[df["Buy_Signal"].notnull()]
+            if not buy_signal_data.empty:
+                for index, row in buy_signal_data.iterrows():
+                    fig.add_shape(
+                        type="line",
+                        x0=index,
+                        x1=index,
+                        y0=df['Low'].min(),
+                        y1=df['High'].max(),
+                        line=dict(
+                            color="blue",
+                            width=2,
+                            dash="dot",
+                        ),
+                        name="Buy Signal",
+                    )
+                    # Display Buy Price
+                    fig.add_annotation(
+                        x=index,
+                        y=df['High'].max(),
+                        text=f"Buy: {row['Buy_Price']:.2f}",
+                        showarrow=False,
+                        xanchor="left",
+                        yanchor="bottom",
+                        font=dict(size=10, color="blue"),
+                    )
+
+        # Sell Signals (🔴) - Changed to vertical dotted lines
+        if "Sell_Signal" in df:
+            sell_signal_data = df[df["Sell_Signal"].notnull()]
+            if not sell_signal_data.empty:
+                for index, row in sell_signal_data.iterrows():
+                    fig.add_shape(
+                        type="line",
+                        x0=index,
+                        x1=index,
+                        y0=df['Low'].min(),
+                        y1=df['High'].max(),
+                        line=dict(
+                            color="red",
+                            width=2,
+                            dash="dot",
+                        ),
+                        name="Sell Signal",
+                    )
+                    # Display Sell Price
+                    fig.add_annotation(
+                        x=index,
+                        y=df['High'].max(),
+                        text=f"Sell: {row['Sell_Price']:.2f}",
+                        showarrow=False,
+                        xanchor="left",
+                        yanchor="bottom",
+                        font=dict(size=10, color="red"),
+                    )
+
+            # Backtest and display results
+            profit, profit_factor, max_drawdown, positions = backtest(df.copy(), best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window) # Pass the parameters to backtest
+            st.write("Backtesting Results:")
+            st.write(f"  Total Profit: {profit:.2f}")
+            st.write(f"  Profit Factor: {profit_factor:.2f}")
+            st.write(f"  Max Drawdown: {max_drawdown:.2f}")
+            st.write("  Trades:")
+            for trade in positions:
+                st.write(f"    {trade[0]} at {trade[1]:.2f} on {df.index[trade[3]]}")
+
+        # Update layout
+        fig.update_layout(title=f"{ticker} Stock Performance", xaxis_rangeslider_visible=False)
+
+        # Display chart and signals
+        with placeholder.container():
+            st.plotly_chart(fig, key=f"chart_{time.time()}")
+            st.write(f"**Market Sentiment Score:** {sentiment} (Higher is better)")
+
+            time.sleep(15)
+            st.rerun()
+    else:
+        st.error("Failed to obtain optimized parameters. Please check the data and try again.")
         time.sleep(15)
         st.rerun()
