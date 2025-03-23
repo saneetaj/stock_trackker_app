@@ -153,29 +153,43 @@ if not st.session_state.stop_tracking:
             fig.add_trace(go.Scatter(x=df.index, y=df["BB_High"], mode="lines", name="BB High", line=dict(color='green')))
             fig.add_trace(go.Scatter(x=df.index, y=df["BB_Low"], mode="lines", name="BB Low", line=dict(color='red')))
 
-        # Buy Signals (🔵) - Changed to lines
+        # Buy Signals (🔵) - Changed to vertical dotted lines
         if "Buy_Signal" in df:
             buy_signal_data = df[df["Buy_Signal"].notnull()]
             if not buy_signal_data.empty:
-                fig.add_trace(go.Scatter(
-                    x=buy_signal_data.index,
-                    y=buy_signal_data["Buy_Signal"],
-                    mode="lines",  # Changed to "lines"
-                    name="BUY Signal",
-                    line=dict(color="blue", width=2),  # Added line style
-                ))
+                for index, row in buy_signal_data.iterrows():
+                    fig.add_shape(
+                        type="line",
+                        x0=index,
+                        x1=index,
+                        y0=df['Low'].min(),  # Extend line from bottom
+                        y1=df['High'].max(), # to the top
+                        line=dict(
+                            color="blue",
+                            width=2,
+                            dash="dot",  # Use a dotted line
+                        ),
+                        name="BUY Signal",
+                    )
 
-        # Sell Signals (🔴) - Changed to lines
+        # Sell Signals (🔴) - Changed to vertical dotted lines
         if "Sell_Signal" in df:
             sell_signal_data = df[df["Sell_Signal"].notnull()]
             if not sell_signal_data.empty:
-                fig.add_trace(go.Scatter(
-                    x=sell_signal_data.index,
-                    y=sell_signal_data["Sell_Signal"],
-                    mode="lines",  # Changed to "lines"
-                    name="SELL Signal",
-                    line=dict(color="red", width=2),  # Added line style
-                ))
+                for index, row in sell_signal_data.iterrows():
+                    fig.add_shape(
+                        type="line",
+                        x0=index,
+                        x1=index,
+                        y0=df['Low'].min(),
+                        y1=df['High'].max(),
+                        line=dict(
+                            color="red",
+                            width=2,
+                            dash="dot",
+                        ),
+                        name="SELL Signal",
+                    )
 
         # Update layout
         fig.update_layout(title=f"{ticker} Stock Performance", xaxis_rangeslider_visible=False)
