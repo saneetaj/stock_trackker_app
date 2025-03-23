@@ -130,6 +130,8 @@ def backtest(df, rsi_window, macd_fast, macd_slow, macd_signal_window, initial_c
             capital = quantity * df["Close"].iloc[i]
             positions.append(("Sell", df["Close"].iloc[i], quantity, i))
             positions = []  # Clear positions after selling
+        elif not positions:
+            buy_price = 0 #Added this line.
 
     if positions: # Handle any open positions at the end
         final_price = df["Close"].iloc[-1]
@@ -250,7 +252,7 @@ if stop_tracking_button:
 if not st.session_state.stop_tracking:
     df = get_stock_data(ticker, period="1y", interval="1h")
     if df.empty:
-        time.sleep(30)
+        time.sleep(15)
         st.rerun()
     
     df = add_technical_indicators(df)
@@ -354,7 +356,7 @@ if not st.session_state.stop_tracking:
                 )
 
         # Backtest and display results
-        profit, profit_factor, max_drawdown, positions = backtest(df.copy(), best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window)
+        profit, profit_factor, max_drawdown, positions = backtest(df.copy(), best_rsi_window, best_macd_fast, best_macd_slow, macd_signal_window)
         st.write("Backtesting Results:")
         st.write(f"  Total Profit: {profit:.2f}")
         st.write(f"  Profit Factor: {profit_factor:.2f}")
@@ -371,5 +373,5 @@ if not st.session_state.stop_tracking:
         st.plotly_chart(fig, key=f"chart_{time.time()}")
         st.write(f"**Market Sentiment Score:** {sentiment} (Higher is better)")
 
-        time.sleep(30)
+        time.sleep(15)
         st.rerun()
