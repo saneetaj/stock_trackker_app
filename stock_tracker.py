@@ -116,14 +116,9 @@ def generate_signals(df, rsi_window, macd_fast, macd_slow, macd_signal_window): 
 # Function for backtesting
 def backtest(df, rsi_window, macd_fast, macd_slow, macd_signal_window, initial_capital=10000):
     try:
-        if df.empty or not all(col in df for col in ["Open", "High", "Low", "Close", "Volume", "RSI", "MACD", "MACD_Signal", "ADX", "VWAP"]):
+        if df.empty or not all(col in df for col in ["Open", "High", "Low", "Close", "Volume", "RSI", "MACD", "MACD_Signal", "ADX", "VWAP", "Buy_Signal", "Sell_Signal"]):
             raise ValueError("Invalid DataFrame: Missing data or empty, or missing required columns.")
 
-        #st.write(f"Backtest Parameters: RSI Window = {rsi_window}, MACD Fast = {macd_fast}, MACD Slow = {macd_slow}, MACD Signal = {macd_signal_window}") #parameter logging
-        #st.write("Backtest DataFrame:") #df logging
-        #st.write(df.head())
-        
-        df = generate_signals(df, rsi_window, macd_fast, macd_slow, macd_signal_window)
         
         positions = []
         capital = initial_capital
@@ -284,7 +279,7 @@ if not st.session_state.stop_tracking:
         st.rerun()
     
     # Optimize parameters
-    best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window = optimize_parameters(df.copy())
+    best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window, profit_factor = optimize_parameters(df.copy())
     
     df = generate_signals(df, best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window)
     sentiment = get_market_sentiment(ticker)
@@ -388,7 +383,12 @@ if not st.session_state.stop_tracking:
                 )
 
         # Backtest and display results
-        best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window, profit_factor = optimize_parameters(df.copy()) # Get results
+        (best_rsi_window, 
+         best_macd_fast, 
+         best_macd_slow, 
+         best_macd_signal_window, 
+         profit_factor) = optimize_parameters(df.copy()) # Get results
+        
         profit, profit_factor, max_drawdown, positions = backtest(df.copy(), best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window) # Pass the parameters to backtest
         st.write("Backtesting Results:")
         st.write(f"  Total Profit: {profit:.2f}")
