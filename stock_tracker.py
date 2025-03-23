@@ -233,8 +233,7 @@ with st.sidebar:
         """
     st.markdown(explanation_md)
 
-placeholder = st.empty() # Reserve placeholder
-
+placeholder = st.empty()
 
 # Update session state based on button clicks
 if start_tracking_button:
@@ -263,6 +262,13 @@ if not st.session_state.stop_tracking:
     
     df = generate_signals(df, best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window)
     sentiment = get_market_sentiment(ticker)
+
+    # Debugging: Print indicator values
+    if not df.empty:
+        st.write(f"Current RSI: {df['RSI'].iloc[-1]:.2f}")
+        st.write(f"Current MACD: {df['MACD'].iloc[-1]:.2f}, Signal: {df['MACD_Signal'].iloc[-1]:.2f}")
+        st.write(f"Current ADX: {df['ADX'].iloc[-1]:.2f}")
+        st.write(f"Current Close: {df['Close'].iloc[-1]:.2f}, VWAP: {df['VWAP'].iloc[-1]:.2f}")
 
     # Create plot
     fig = go.Figure()
