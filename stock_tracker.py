@@ -49,23 +49,13 @@ def get_market_sentiment(ticker):
 
 # Function to generate buy/sell signals
 def generate_signals(df):
-    buy_signals = []
-    sell_signals = []
-    
-    for i in range(1, len(df)):
-        if df["RSI"].iloc[i] < 30 and df["MACD"].iloc[i] > df["MACD_Signal"].iloc[i]:
-            buy_signals.append(df["Close"].iloc[i])
-            sell_signals.append(None)  # No sell signal
-        elif df["RSI"].iloc[i] > 70 and df["MACD"].iloc[i] < df["MACD_Signal"].iloc[i]:
-            sell_signals.append(df["Close"].iloc[i])
-            buy_signals.append(None)  # No buy signal
-        else:
-            buy_signals.append(None)
-            sell_signals.append(None)
-
-    df["Buy_Signal"] = buy_signals
-    df["Sell_Signal"] = sell_signals
-    return df
+    latest = df.iloc[-1]
+    signal = "HOLD"
+    if latest["RSI"] < 30 and latest["MACD"] > latest["MACD_Signal"]:
+        signal = "🔵 STRONG BUY"
+    elif latest["RSI"] > 70 and latest["MACD"] < latest["MACD_Signal"]:
+        signal = "🔴 STRONG SELL"
+    return signal
 
 # Streamlit UI
 st.title("📈 Real-time Stock Tracker with AI-based Signals")
@@ -84,13 +74,11 @@ placeholder = st.empty()  # Placeholder for updating content dynamically
 while not st.session_state.stop_tracking:
     df = get_stock_data(ticker)
     df = add_technical_indicators(df)
-    df = generate_signals(df)  # Add buy/sell signals
+    signal = generate_signals(df)
     sentiment = get_market_sentiment(ticker)
     
     # Create plot
     fig = go.Figure()
-    
-    # Candlestick chart
     fig.add_trace(go.Candlestick(
         x=df.index,
         open=df['Open'],
@@ -99,32 +87,17 @@ while not st.session_state.stop_tracking:
         close=df['Close'],
         name="Candlesticks"
     ))
-
-    # EMA 20
     fig.add_trace(go.Scatter(x=df.index, y=df["EMA_20"], mode="lines", name="EMA 20", line=dict(color='blue')))
-
-    # Bollinger Bands
     fig.add_trace(go.Scatter(x=df.index, y=df["BB_High"], mode="lines", name="BB High", line=dict(color='green')))
     fig.add_trace(go.Scatter(x=df.index, y=df["BB_Low"], mode="lines", name="BB Low", line=dict(color='red')))
-
-    # Buy Signals (🔵)
-    fig.add_trace(go.Scatter(
-        x=df.index, y=df["Buy_Signal"], mode="markers", name="BUY Signal",
-        marker=dict(symbol="triangle-up", size=10, color="blue")
-    ))
-
-    # Sell Signals (🔴)
-    fig.add_trace(go.Scatter(
-        x=df.index, y=df["Sell_Signal"], mode="markers", name="SELL Signal",
-        marker=dict(symbol="triangle-down", size=10, color="red")
-    ))
-
+    
     # Update layout
     fig.update_layout(title=f"{ticker} Stock Performance", xaxis_rangeslider_visible=False)
-
+    
     # Display chart and signals
     with placeholder.container():
         st.plotly_chart(fig, key=f"chart_{time.time()}")  # Ensure a unique key to prevent duplicate IDs
+        st.write(f"**Technical Indicator Signal:** {signal}")
         st.write(f"**Market Sentiment Score:** {sentiment} (Higher is better)")
     
     time.sleep(15)  # Refresh every 15 seconds
