@@ -79,8 +79,8 @@ def generate_signals(df, rsi_window, macd_fast, macd_slow, macd_signal_window): 
         
         buy_signals = [None] * len(df)
         sell_signals = [None] * len(df)
-        buy_prices = [None] * len(df)
-        sell_prices = [None] * len(df)
+        buy_prices = [None] * len(df)  # Store buy prices
+        sell_prices = [None] * len(df)  # Store sell prices
 
         for i in range(1, len(df)):
             if "RSI" in df and "MACD" in df and "MACD_Signal" in df and "ADX" in df and "VWAP" in df: #check for the new columns
@@ -211,7 +211,7 @@ if stop_tracking_button:
 
 # Real-time tracking loop
 if not st.session_state.stop_tracking:
-    df = get_stock_data(ticker, period="1y", interval="1h")  # Get 1 year of data
+    df = get_stock_data(ticker, period="1y", interval="1h")
     if df.empty:
         time.sleep(15)
         st.rerun()
@@ -219,11 +219,11 @@ if not st.session_state.stop_tracking:
     df = add_technical_indicators(df)
     
     # Optimize parameters
-    best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window, best_profit_factor = optimize_parameters(df.copy()) #optimize
-    st.write(f"Optimized Parameters: RSI Window = {best_rsi_window}, MACD Fast = {best_macd_fast}, MACD Slow = {best_macd_slow}, MACD Signal = {best_macd_signal_window}")
-    st.write(f"Optimized Profit Factor: {best_profit_factor:.2f}")
+    best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window, best_profit_factor = optimize_parameters(df.copy())
+    st.write(f"Optimized Parameters: RSI Window = {best_rsi_window}, MACD Fast = {best_macd_fast}, MACD Slow = {best_macd_slow}, MACD Signal = {best_macd_signal_window}") #show params
+    st.write(f"Optimized Profit Factor: {best_profit_factor:.2f}") # show profit factor
     
-    df = generate_signals(df, best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window) # Pass optimized parameters
+    df = generate_signals(df, best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window)
     sentiment = get_market_sentiment(ticker)
 
     # Create plot
@@ -311,13 +311,13 @@ if not st.session_state.stop_tracking:
 
         # Backtest and display results
         profit, profit_factor, max_drawdown, positions = backtest(df.copy(), best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window)
-        st.write(f"Backtesting Results:")
-        st.write(f"Total Profit: {profit:.2f}")
-        st.write(f"Profit Factor: {profit_factor:.2f}")
-        st.write(f"Max Drawdown: {max_drawdown:.2f}")
-        st.write("Trades:")
+        st.write("Backtesting Results:")
+        st.write(f"  Total Profit: {profit:.2f}")  # Backtesting result
+        st.write(f"  Profit Factor: {profit_factor:.2f}") # Backtesting result
+        st.write(f"  Max Drawdown: {max_drawdown:.2f}") # Backtesting result
+        st.write("  Trades:")
         for trade in positions:
-            st.write(f"{trade[0]} at {trade[1]:.2f} on {df.index[trade[3]]}")
+            st.write(f"    {trade[0]} at {trade[1]:.2f} on {df.index[trade[3]]}") # Backtesting result
 
     # Update layout
     fig.update_layout(title=f"{ticker} Stock Performance", xaxis_rangeslider_visible=False)
@@ -325,7 +325,43 @@ if not st.session_state.stop_tracking:
     # Display chart and signals
     with placeholder.container():
         st.plotly_chart(fig, key=f"chart_{time.time()}")
-        st.write(f"**Market Sentiment Score:** {sentiment} (Higher is better)")
+        st.write(f"**Market Sentiment Score:** {sentiment} (Higher is better)") # Market sentiment
 
-    time.sleep(15)
-    st.rerun()
+        st.markdown(
+            """
+            **Explanation of Terms:**
+
+            **Market Sentiment Score:**
+            * This score indicates the general mood of the market towards the selected stock, based on analysis of recent news headlines.
+            * The score is calculated by counting positive and negative keywords in the news.
+                * A higher score suggests more positive sentiment.
+                * A lower or negative score suggests more negative sentiment.
+            * It's a general indicator and should be used with other information, not as a sole predictor of buy/sell decisions.
+
+            **Optimized Parameters:**
+            * The app uses technical indicators (RSI and MACD) to generate buy/sell signals. These indicators have adjustable settings (parameters).
+            * The app automatically tries different parameter values to find the combination that historically would have produced the best results.
+            * RSI Window: The number of past periods used to calculate the Relative Strength Index (RSI).
+            * MACD Fast: The shorter period EMA used in the MACD calculation.
+            * MACD Slow: The longer period EMA used in the MACD calculation.
+            * MACD Signal: The number of periods used to calculate the signal line of the MACD.
+            * Optimized Profit Factor: The profit factor achieved by the optimized parameters in historical testing.
+
+            **Backtesting Results:**
+            * Backtesting is the process of testing a trading strategy on historical data to see how it would have performed.
+            * The app performs a simplified backtest to evaluate the effectiveness of the buy/sell signals generated with the optimized parameters.
+            * Total Profit: The total profit or loss that would have been generated by the strategy over the backtesting period, in dollars.
+            * Profit Factor: A measure of a trading strategy's profitability. It's calculated as the ratio of gross profit to gross loss.
+                * A profit factor greater than 1 indicates a profitable strategy.
+                * A higher profit factor is generally better.
+            * Max Drawdown: The largest peak-to-trough decline during the backtesting period. It indicates the potential risk of the strategy.
+                * A lower max drawdown is generally better, as it indicates less risk.
+            * Trades: The individual trades that the backtest would have made, including the type of trade (buy or sell), the price, and the date.
+
+            **How this Explains Buy/Sell Recommendations:**
+            * The app uses the optimized parameters in its core buy/sell signal generation logic. The backtesting results show how those parameters would have performed historically. So, the parameters are chosen to try to maximize profitability, and the backtest shows you how that worked out. The market sentiment is an additional piece of information to consider.
+            """
+        )
+
+        time.sleep(15)
+        st.rerun()
