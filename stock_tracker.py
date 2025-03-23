@@ -78,8 +78,11 @@ def generate_signals(df):
         sell_signals = [None] * len(df)
         buy_prices = [None] * len(df)
         sell_prices = [None] * len(df)
+        buy_reasons = [None] * len(df)
+        sell_reasons = [None] * len(df)
 
         for i in range(1, len(df)):
+            reasons = []
             if "RSI" in df and "MACD" in df and "MACD_Signal" in df and "ADX" in df and "VWAP" in df:
                 if (
                     df["RSI"].iloc[i] < 30
@@ -89,6 +92,11 @@ def generate_signals(df):
                 ):
                     buy_signals[i] = 1
                     buy_prices[i] = df["Close"].iloc[i]
+                    reasons.append("RSI < 30 (Oversold)")
+                    reasons.append("MACD > Signal (Bullish)")
+                    reasons.append("ADX > 25 (Strong Trend)")
+                    reasons.append("Close > VWAP")
+                    buy_reasons[i] = ", ".join(reasons)
                 elif (
                     df["RSI"].iloc[i] > 70
                     and df["MACD"].iloc[i] < df["MACD_Signal"].iloc[i]
@@ -97,14 +105,39 @@ def generate_signals(df):
                 ):
                     sell_signals[i] = 1
                     sell_prices[i] = df["Close"].iloc[i]
+                    reasons.append("RSI > 70 (Overbought)")
+                    reasons.append("MACD < Signal (Bearish)")
+                    reasons.append("ADX > 25 (Strong Trend)")
+                    reasons.append("Close < VWAP")
+                    sell_reasons[i] = ", ".join(reasons)
         df["Buy_Signal"] = pd.Series(buy_signals, index=df.index)
         df["Sell_Signal"] = pd.Series(sell_signals, index=df.index)
         df["Buy_Price"] = pd.Series(buy_prices, index=df.index)
         df["Sell_Price"] = pd.Series(sell_prices, index=df.index)
+        df["Buy_Reasons"] = pd.Series(buy_reasons, index=df.index)
+        df["Sell_Reasons"] = pd.Series(sell_reasons, index=df.index)
         return df
     except Exception as e:
         st.error(f"Error generating signals: {e}")
         return df
+
+# Function to get analyst ratings
+def get_analyst_ratings(ticker):
+    url = f"https://finance.yahoo.com/quote/{ticker}/analysis"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, "html.parser")
+            target_est = soup.find("td", {"class": "Ta(end) Fw(b) Lh(1.42)"}).text if soup.find("td", {"class": "Ta(end) Fw(b) Lh(1.42)"}) else "N/A"
+            rating = soup.find("div", {"class": "Fw(600) Mt(8px) D(ib)"}).text if soup.find("div", {"class": "Fw(600) Mt(8px) D(ib)"}) else "N/A"
+            return target_est, rating
+        else:
+            st.warning(f"Failed to fetch analyst ratings for {ticker}. Status code: {response.status_code}")
+            return "N/A", "N/A"
+    except Exception as e:
+        st.error(f"Error fetching analyst ratings: {e}")
+        return "N/A", "N/A"
 
 # Streamlit UI
 st.title("📈 Real-time Stock Tracker")
@@ -187,6 +220,7 @@ if not st.session_state.stop_tracking:
 
     df = generate_signals(df)
     sentiment = get_market_sentiment(ticker)
+    target_price, rating = get_analyst_ratings(ticker) # Get analyst ratings
 
     # Store selected indicators in session state
     st.session_state.selected_indicators = [] #reset
@@ -277,13 +311,15 @@ if not st.session_state.stop_tracking:
     with placeholder.container():
         st.plotly_chart(fig, key=f"chart_{time.time()}")
         st.write(f"**Market Sentiment Score:** {sentiment} (Higher is better)")
+        st.write(f"**Analyst Target Price:** {target_price}")
+        st.write(f"**Analyst Rating:** {rating}")
 
         # Display AI Recommendation
         if not df.empty:
             if df["Buy_Signal"].iloc[-1] == 1:
-                st.write(f"AI Recommendation: Buy {ticker} at {df['Close'].iloc[-1]:.2f}")
+                st.write(f"AI Recommendation: Buy {ticker} at {df['Close'].iloc[-1]:.2f}  Reasons: {df['Buy_Reasons'].iloc[-1]}")
             elif df["Sell_Signal"].iloc[-1] == 1:
-                st.write(f"AI Recommendation: Sell {ticker} at {df['Close'].iloc[-1]:.2f}")
+                st.write(f"AI Recommendation: Sell {ticker} at {df['Close'].iloc[-1]:.2f} Reasons: {df['Sell_Reasons'].iloc[-1]}")
             else:
                 st.write(f"AI Recommendation: No Action on {ticker}")
 
