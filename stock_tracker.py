@@ -8,7 +8,7 @@ import requests
 from bs4 import BeautifulSoup
 import plotly.graph_objects as go
 
-# Initialize session state for stop tracking button
+# Initialize session state for stopping the app
 if "stop_tracking" not in st.session_state:
     st.session_state.stop_tracking = False
 
@@ -24,51 +24,66 @@ def add_technical_indicators(df):
     df["RSI"] = ta.momentum.rsi(df["Close"], window=14)
     df["MACD"] = ta.trend.macd(df["Close"])
     df["MACD_Signal"] = ta.trend.macd_signal(df["Close"])
-    df["BB_High"], df["BB_Mid"], df["BB_Low"] = ta.volatility.bollinger_hband(df["Close"]), ta.volatility.bollinger_mavg(df["Close"]), ta.volatility.bollinger_lband(df["Close"])
+    df["BB_High"], df["BB_Mid"], df["BB_Low"] = (
+        ta.volatility.bollinger_hband(df["Close"]),
+        ta.volatility.bollinger_mavg(df["Close"]),
+        ta.volatility.bollinger_lband(df["Close"]),
+    )
     return df
 
-# Function to get market sentiment from financial news
+# Function to fetch market sentiment based on news
 def get_market_sentiment(ticker):
     url = f"https://finance.yahoo.com/quote/{ticker}/news"
     headers = {"User-Agent": "Mozilla/5.0"}
     response = requests.get(url, headers=headers)
-    
+
     if response.status_code == 200:
         soup = BeautifulSoup(response.text, "html.parser")
         headlines = soup.find_all("h3")
+
         sentiment_score = 0
         for h in headlines[:5]:  # Analyze the top 5 headlines
             text = h.text.lower()
-            if any(word in text for word in ["rises", "soars", "strong", "bullish", "positive"]):
+            if any(word in text for word in ["rises", "soars", "strong", "bullish", "positive", "surge", "growth"]):
                 sentiment_score += 1
-            elif any(word in text for word in ["drops", "falls", "weak", "bearish", "negative"]):
+            elif any(word in text for word in ["drops", "falls", "weak", "bearish", "negative", "crash", "decline"]):
                 sentiment_score -= 1
+
         return sentiment_score
     else:
         return 0  # Neutral sentiment if unable to fetch
 
-# Function to generate buy/sell signals
-def generate_signals(df):
+# Function to generate buy/sell signals based on indicators & sentiment
+def generate_signals(df, sentiment_score):
     buy_signals = []
     sell_signals = []
-    
-    for i in range(1, len(df)):
-        if df["RSI"].iloc[i] < 30 and df["MACD"].iloc[i] > df["MACD_Signal"].iloc[i]:
-            buy_signals.append(df["Close"].iloc[i])
-            sell_signals.append(None)  # No sell signal
-        elif df["RSI"].iloc[i] > 70 and df["MACD"].iloc[i] < df["MACD_Signal"].iloc[i]:
-            sell_signals.append(df["Close"].iloc[i])
-            buy_signals.append(None)  # No buy signal
-        else:
-            buy_signals.append(None)
-            sell_signals.append(None)
 
-    df["Buy_Signal"] = buy_signals
-    df["Sell_Signal"] = sell_signals
+    for i in range(1, len(df)):
+        buy_signal = False
+        sell_signal = False
+
+        # Technical Indicators Condition
+        if df["RSI"].iloc[i] < 30 and df["MACD"].iloc[i] > df["MACD_Signal"].iloc[i]:
+            buy_signal = True
+        elif df["RSI"].iloc[i] > 70 and df["MACD"].iloc[i] < df["MACD_Signal"].iloc[i]:
+            sell_signal = True
+
+        # Adjust signals based on market sentiment
+        if sentiment_score > 0:
+            buy_signal = buy_signal or (sentiment_score > 2)  # Strong sentiment can create buy signal
+        elif sentiment_score < 0:
+            sell_signal = sell_signal or (sentiment_score < -2)  # Strong negative sentiment can trigger sell
+
+        # Store signals
+        buy_signals.append(df["Close"].iloc[i] if buy_signal else None)
+        sell_signals.append(df["Close"].iloc[i] if sell_signal else None)
+
+    df["Buy_Signal"] = [None] + buy_signals  # Shift for proper indexing
+    df["Sell_Signal"] = [None] + sell_signals  # Shift for proper indexing
     return df
 
 # Streamlit UI
-st.title("📈 Real-time Stock Tracker with AI-based Signals")
+st.title("📈 AI-powered Stock Tracker with Buy/Sell Signals")
 
 ticker = st.text_input("Enter Stock Ticker (e.g., AAPL, TSLA, MSFT):", "AAPL")
 
@@ -78,18 +93,18 @@ if st.button("Stop Tracking"):
 
 st.write("Tracking will refresh every 15 seconds...")
 
-placeholder = st.empty()  # Placeholder for updating content dynamically
+placeholder = st.empty()  # Placeholder for dynamic content
 
 # Real-time tracking loop
 while not st.session_state.stop_tracking:
     df = get_stock_data(ticker)
     df = add_technical_indicators(df)
-    df = generate_signals(df)  # Add buy/sell signals
-    sentiment = get_market_sentiment(ticker)
-    
+    sentiment_score = get_market_sentiment(ticker)
+    df = generate_signals(df, sentiment_score)  # Add buy/sell signals
+
     # Create plot
     fig = go.Figure()
-    
+
     # Candlestick chart
     fig.add_trace(go.Candlestick(
         x=df.index,
@@ -124,8 +139,8 @@ while not st.session_state.stop_tracking:
 
     # Display chart and signals
     with placeholder.container():
-        st.plotly_chart(fig, key=f"chart_{time.time()}")  # Ensure a unique key to prevent duplicate IDs
-        st.write(f"**Market Sentiment Score:** {sentiment} (Higher is better)")
+        st.plotly_chart(fig, key=f"chart_{time.time()}")  # Unique key to prevent duplicate IDs
+        st.write(f"**Market Sentiment Score:** {sentiment_score} (Higher is better)")
     
     time.sleep(15)  # Refresh every 15 seconds
     st.rerun()  # Forces a rerun for real-time updates
