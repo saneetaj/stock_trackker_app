@@ -196,7 +196,9 @@ def optimize_parameters(df):
                             st.error(f"Invalid DataFrame before backtest with parameters (RSI={rsi_window}, MACD Fast={macd_fast}, MACD Slow={macd_slow}, Signal={macd_signal_window})")
                             return None, None, None, None, 0  # Return a default value
 
-                        profit, profit_factor, max_drawdown, positions = backtest(df.copy(), rsi_window, macd_fast, macd_slow, macd_signal_window)
+                        # Create a copy here to avoid modifying the original DataFrame
+                        df_copy = df.copy()
+                        profit, profit_factor, max_drawdown, positions = backtest(df_copy, rsi_window, macd_fast, macd_slow, macd_signal_window)
                         if profit_factor > best_profit_factor:
                             best_profit_factor = profit_factor
                             best_rsi_window = rsi_window
@@ -392,7 +394,9 @@ if not st.session_state.stop_tracking:
                     )
 
             # Backtest and display results
-            profit, profit_factor, max_drawdown, positions = backtest(df.copy(), best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window) # Pass the parameters to backtest
+            # Create a copy here to avoid modifying the original DataFrame
+            df_copy_backtest = df.copy()
+            profit, profit_factor, max_drawdown, positions = backtest(df_copy_backtest, best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window) # Pass the parameters to backtest
             st.write("Backtesting Results:")
             st.write(f"  Total Profit: {profit:.2f}")
             st.write(f"  Profit Factor: {profit_factor:.2f}")
