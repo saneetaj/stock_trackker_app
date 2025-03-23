@@ -140,9 +140,9 @@ def get_analyst_ratings(ticker):
         return "N/A", "N/A"
 
 # Streamlit UI
-st.title("📈 Real-time Stock Tracker")
+st.title("📈 Real-time Stock Tracker with Buy/Sell Recommendations")
 
-ticker = st.text_input("Enter Stock Ticker (e.g., AAPL, TSLA, MSFT):", "AAPL")
+ticker = st.text_input("Enter Stock Ticker (e.g., AAPL, TSLA, MSFT, etc.):", "AAPL")
 
 # Buttons for starting and stopping tracking
 col1, col2 = st.columns([1, 1])
