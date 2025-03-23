@@ -14,7 +14,7 @@ if "stop_tracking" not in st.session_state:
 if "start_tracking" not in st.session_state:
     st.session_state.start_tracking = False
 if "selected_indicators" not in st.session_state:
-    st.session_state.selected_indicators = []
+    st.session_state.selected_indicators = ["EMA_20", "RSI", "MACD", "BB_High", "BB_Mid", "BB_Low", "ADX", "VWAP"]  # Initialize with all indicators selected.
 if "tracking_ticker" not in st.session_state:
     st.session_state.tracking_ticker = "AAPL"  # Default ticker
 
@@ -157,7 +157,7 @@ placeholder = st.empty()
 # Update session state based on button clicks
 if start_tracking_button:
     if ticker != st.session_state.tracking_ticker:  # Check if the ticker has changed.
-        st.session_state.selected_indicators = []  # If the ticker is different, reset the selected indicators.
+        st.session_state.selected_indicators = ["EMA_20", "RSI", "MACD", "BB_High", "BB_Mid", "BB_Low", "ADX", "VWAP"]  # Reset to default: all checked.
     st.session_state.stop_tracking = False
     st.session_state.start_tracking = True
     st.session_state.tracking_ticker = ticker  # Store the ticker
@@ -189,7 +189,7 @@ if not st.session_state.stop_tracking:
     sentiment = get_market_sentiment(ticker)
 
     # Store selected indicators in session state
-    st.session_state.selected_indicators = []
+    st.session_state.selected_indicators = [] #reset
     if ema_20_selected:
         st.session_state.selected_indicators.append("EMA_20")
     if rsi_selected:
