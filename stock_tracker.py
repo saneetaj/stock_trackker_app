@@ -207,8 +207,9 @@ def optimize_parameters(df):
                             st.error(f"Invalid DataFrame before backtest with parameters (RSI={rsi_window}, MACD Fast={macd_fast}, MACD Slow={macd_slow}, Signal={macd_signal_window})")
                             return None, None, None, None, 0  # Return a default value
 
-                        # Print the columns of the dataframe before backtest
+                        # Print the columns and shape of the dataframe before backtest
                         print(f"Columns in df_copy before backtest: {df_copy.columns}")
+                        print(f"Shape of df_copy before backtest: {df_copy.shape}")
 
                         profit, profit_factor, max_drawdown, positions = backtest(df_copy, rsi_window, macd_fast, macd_slow, macd_signal_window)
                         if profit_factor > best_profit_factor:
