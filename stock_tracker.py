@@ -34,7 +34,7 @@ def add_technical_indicators(df):
         df["RSI"] = ta.momentum.rsi(df["Close"], window=14)
         df["MACD"] = ta.trend.macd(df["Close"])
         df["MACD_Signal"] = ta.trend.macd_signal(df["Close"])
-        df["BB_High"], df["BB_Mid"], df["BB_Low"] = ta.volatility.bollinger_hband(df["Close"]), ta.volatility.bollinger_mavg(df["Close"]), ta.volatility.bollinger_lband(df["Close"])
+        df["BB_High"], df["BB_Mid"], df["BB_Low"] = ta.volatility.bollinger_hband(df["Close"]), ta.volatility.bollinger_mavg(df["Close"]), ta.vollinger_lband(df["Close"])
         df["ADX"] = ta.trend.adx(df["High"], df["Low"], df["Close"])  # Added ADX
         df["VWAP"] = ta.volume.volume_weighted_average_price(df["High"], df["Low"], df["Close"], df["Volume"]) # Added VWAP
         return df
@@ -119,9 +119,9 @@ def backtest(df, rsi_window, macd_fast, macd_slow, macd_signal_window, initial_c
         if df.empty or not all(col in df for col in ["Open", "High", "Low", "Close", "Volume"]):
             raise ValueError("Invalid DataFrame: Missing data or empty.")
 
-        st.write(f"Backtest Parameters: RSI Window = {rsi_window}, MACD Fast = {macd_fast}, MACD Slow = {macd_slow}, MACD Signal = {macd_signal_window}") #parameter logging
-        st.write("Backtest DataFrame:") #df logging
-        st.write(df.head())
+        #st.write(f"Backtest Parameters: RSI Window = {rsi_window}, MACD Fast = {macd_fast}, MACD Slow = {macd_slow}, MACD Signal = {macd_signal_window}") #parameter logging
+        #st.write("Backtest DataFrame:") #df logging
+        #st.write(df.head())
         
         df = generate_signals(df, rsi_window, macd_fast, macd_slow, macd_signal_window)
         
@@ -278,6 +278,11 @@ if not st.session_state.stop_tracking:
     
     df = add_technical_indicators(df)
     
+    if df.empty: #check if the dataframe is empty
+        st.error(f"No data available for {ticker}. Please check the ticker symbol and try again.")
+        time.sleep(15)
+        st.rerun()
+    
     # Optimize parameters
     best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window = optimize_parameters(df.copy())
     
@@ -383,7 +388,8 @@ if not st.session_state.stop_tracking:
                 )
 
         # Backtest and display results
-        profit, profit_factor, max_drawdown, positions = backtest(df.copy(), best_rsi_window, best_macd_fast, best_macd_slow, macd_signal_window)
+        best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window, profit_factor = optimize_parameters(df.copy()) # Get results
+        profit, profit_factor, max_drawdown, positions = backtest(df.copy(), best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window) # Pass the parameters to backtest
         st.write("Backtesting Results:")
         st.write(f"  Total Profit: {profit:.2f}")
         st.write(f"  Profit Factor: {profit_factor:.2f}")
