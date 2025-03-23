@@ -250,7 +250,7 @@ if stop_tracking_button:
 if not st.session_state.stop_tracking:
     df = get_stock_data(ticker, period="1y", interval="1h")
     if df.empty:
-        time.sleep(15)
+        time.sleep(30)
         st.rerun()
     
     df = add_technical_indicators(df)
@@ -371,5 +371,5 @@ if not st.session_state.stop_tracking:
         st.plotly_chart(fig, key=f"chart_{time.time()}")
         st.write(f"**Market Sentiment Score:** {sentiment} (Higher is better)")
 
-        time.sleep(15)
+        time.sleep(30)
         st.rerun()
