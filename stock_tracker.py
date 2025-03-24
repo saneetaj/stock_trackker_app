@@ -7,8 +7,8 @@ import requests
 from bs4 import BeautifulSoup
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+import google.generativeai as genai
 
-# Initialize session state variables
 if "stop_tracking" not in st.session_state:
     st.session_state.stop_tracking = True
 if "start_tracking" not in st.session_state:
@@ -16,9 +16,13 @@ if "start_tracking" not in st.session_state:
 if "selected_indicators" not in st.session_state:
     st.session_state.selected_indicators = ["EMA_20", "RSI", "MACD", "BB_High", "BB_Mid", "BB_Low", "ADX", "VWAP"]
 if "tracked_tickers" not in st.session_state:
-    st.session_state.tracked_tickers = ["AAPL"]  # Default ticker list
+    st.session_state.tracked_tickers = ["AAPL"]
 
-# Function to fetch stock data
+GENAI_KEY = "AIzaSyCxxmnu1LIdKD4hVkTuprO274ww5hv4R5k"
+genai.configure(api_key=GENAI_KEY)
+model = genai.GenerativeModel("gemini-pro")
+
+
 def get_stock_data(ticker, period="1y", interval="1h"):
     try:
         stock = yf.Ticker(ticker)
@@ -28,7 +32,7 @@ def get_stock_data(ticker, period="1y", interval="1h"):
         st.error(f"Error fetching data for {ticker}: {e}")
         return pd.DataFrame()
 
-# Function to calculate technical indicators
+
 def add_technical_indicators(df):
     if df.empty:
         return df
@@ -37,7 +41,8 @@ def add_technical_indicators(df):
         df["RSI"] = ta.momentum.rsi(df["Close"], window=14)
         df["MACD"] = ta.trend.macd(df["Close"])
         df["MACD_Signal"] = ta.trend.macd_signal(df["Close"])
-        df["BB_High"], df["BB_Mid"], df["BB_Low"] = ta.volatility.bollinger_hband(df["Close"]), ta.volatility.bollinger_mavg(df["Close"]), ta.volatility.bollinger_lband(df["Close"])
+        df["BB_High"], df["BB_Mid"], df["BB_Low"] = ta.volatility.bollinger_hband(df["Close"]), ta.volatility.bollinger_mavg(
+            df["Close"]), ta.volatility.bollinger_lband(df["Close"])
         df["ADX"] = ta.trend.adx(df["High"], df["Low"], df["Close"])
         df["VWAP"] = ta.volume.volume_weighted_average_price(df["High"], df["Low"], df["Close"], df["Volume"])
         return df
@@ -45,8 +50,9 @@ def add_technical_indicators(df):
         st.error(f"Error calculating technical indicators: {e}")
         return df
 
-# Function to get market sentiment from financial news
-def get_market_sentiment(ticker):
+
+
+def get_market_sentiment_gemini(ticker):
     url = f"https://finance.yahoo.com/quote/{ticker}/news"
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
@@ -54,22 +60,28 @@ def get_market_sentiment(ticker):
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "html.parser")
             headlines = soup.find_all("h3")
-            sentiment_score = 0
-            for h in headlines[:5]:
-                text = h.text.lower()
-                if any(word in text for word in ["rises", "soars", "strong", "bullish", "positive"]):
-                    sentiment_score += 1
-                elif any(word in text for word in ["drops", "falls", "weak", "bearish", "negative"]):
-                    sentiment_score -= 1
-            return sentiment_score
+            news_text = " ".join([h.text for h in headlines[:5]])
+
+            prompt = (
+                "Analyze the market sentiment for " + ticker + " by considering the following:\n\n"
+                "1.  News Headlines: \"" + news_text + "\"\n"
+                "2.  General web sentiment from financial blogs, forums, and other sources.\n\n"
+                "Provide a concise summary of the overall market sentiment, categorizing it as positive, negative, or neutral.  Also, include the key reasons\n"
+                "influencing the sentiment."
+            )
+            gemini_response = model.generate_content(prompt)
+            return gemini_response.text
+
         else:
-            st.warning(f"Failed to fetch news for {ticker}. Status code: {response.status_code}")
-            return 0
+            st.warning(
+                f"Failed to fetch news for {ticker}. Status code: {response.status_code}")
+            return "N/A"
     except Exception as e:
         st.error(f"Error fetching market sentiment: {e}")
-        return 0
+        return "N/A"
 
-# Function to generate buy/sell signals
+
+
 def generate_signals(df):
     if df.empty:
         return df
@@ -85,10 +97,10 @@ def generate_signals(df):
             reasons = []
             if "RSI" in df and "MACD" in df and "MACD_Signal" in df and "ADX" in df and "VWAP" in df:
                 if (
-                    df["RSI"].iloc[i] < 30
-                    and df["MACD"].iloc[i] > df["MACD_Signal"].iloc[i]
-                    and df["ADX"].iloc[i] > 25
-                    and df["Close"].iloc[i] > df["VWAP"].iloc[i]
+                        df["RSI"].iloc[i] < 30
+                        and df["MACD"].iloc[i] > df["MACD_Signal"].iloc[i]
+                        and df["ADX"].iloc[i] > 25
+                        and df["Close"].iloc[i] > df["VWAP"].iloc[i]
                 ):
                     buy_signals[i] = 1
                     buy_prices[i] = df["Close"].iloc[i]
@@ -98,10 +110,10 @@ def generate_signals(df):
                     reasons.append("Close > VWAP")
                     buy_reasons[i] = ", ".join(reasons)
                 elif (
-                    df["RSI"].iloc[i] > 70
-                    and df["MACD"].iloc[i] < df["MACD_Signal"].iloc[i]
-                    and df["ADX"].iloc[i] > 25
-                    and df["Close"].iloc[i] < df["VWAP"].iloc[i]
+                        df["RSI"].iloc[i] > 70
+                        and df["MACD"].iloc[i] < df["MACD_Signal"].iloc[i]
+                        and df["ADX"].iloc[i] > 25
+                        and df["Close"].iloc[i] < df["VWAP"].iloc[i]
                 ):
                     sell_signals[i] = 1
                     sell_prices[i] = df["Close"].iloc[i]
@@ -110,6 +122,9 @@ def generate_signals(df):
                     reasons.append("ADX > 25 (Strong Trend)")
                     reasons.append("Close < VWAP")
                     sell_reasons[i] = ", ".join(reasons)
+            else:
+                st.error("Required columns not found in DataFrame.")
+                return df
         df["Buy_Signal"] = pd.Series(buy_signals, index=df.index)
         df["Sell_Signal"] = pd.Series(sell_signals, index=df.index)
         df["Buy_Price"] = pd.Series(buy_prices, index=df.index)
@@ -121,7 +136,8 @@ def generate_signals(df):
         st.error(f"Error generating signals: {e}")
         return df
 
-# Function to get analyst ratings
+
+
 def get_analyst_ratings(ticker):
     url = f"https://finance.yahoo.com/quote/{ticker}/analysis"
     headers = {"User-Agent": "Mozilla/5.0"}
@@ -129,8 +145,10 @@ def get_analyst_ratings(ticker):
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "html.parser")
-            target_est = soup.find("td", {"class": "Ta(end) Fw(b) Lh(1.42)"}).text if soup.find("td", {"class": "Ta(end) Fw(b) Lh(1.42)"}) else "N/A"
-            rating = soup.find("div", {"class": "Fw(600) Mt(8px) D(ib)"}).text if soup.find("div", {"class": "Fw(600) Mt(8px) D(ib)"}) else "N/A"
+            target_est = soup.find("td", {"class": "Ta(end) Fw(b) Lh(1.42)"}).text if soup.find(
+                "td", {"class": "Ta(end) Fw(b) Lh(1.42)"}) else "N/A"
+            rating = soup.find("div", {"class": "Fw(600) Mt(8px) D(ib)"}).text if soup.find(
+                "div", {"class": "Fw(600) Mt(8px) D(ib)"}) else "N/A"
             return target_est, rating
         else:
             st.warning(f"Failed to fetch analyst ratings for {ticker}. Status code: {response.status_code}")
@@ -139,39 +157,38 @@ def get_analyst_ratings(ticker):
         st.error(f"Error fetching analyst ratings: {e}")
         return "N/A", "N/A"
 
-# Streamlit UI
-st.title("📈 Real-time Stock Tracker with Buy/Sell Recommendations")
+
+
+st.title("📈 Real-time Stock Tracker with AI-powered Analysis")
 
 tickers = st.text_input("Enter Stock Tickers (comma-separated, e.g., AAPL, TSLA, MSFT):", "AAPL,TSLA,MSFT")
 tickers_list = [ticker.strip() for ticker in tickers.split(",")]
 
-# Buttons for starting and stopping tracking
 col1, col2 = st.columns([1, 1])
 with col1:
     start_tracking_button = st.button("Start Tracking")
 with col2:
     stop_tracking_button = st.button("Stop Tracking")
 
-# Sidebar for explanations
 with st.sidebar:
-    # Add checkboxes for indicators in the sidebar
     st.sidebar.subheader("Select Technical Indicators")
-    ema_20_selected = st.sidebar.checkbox("EMA 20", value=("EMA_20" in st.session_state.selected_indicators), key="ema_20_checkbox")
+    ema_20_selected = st.sidebar.checkbox("EMA 20", value=("EMA_20" in st.session_state.selected_indicators),
+                                         key="ema_20_checkbox")
     rsi_selected = st.sidebar.checkbox("RSI", value=("RSI" in st.session_state.selected_indicators), key="rsi_checkbox")
     macd_selected = st.sidebar.checkbox("MACD", value=("MACD" in st.session_state.selected_indicators), key="macd_checkbox")
-    bb_selected = st.sidebar.checkbox("Bollinger Bands", value=("BB_High" in st.session_state.selected_indicators or "BB_Mid" in st.session_state.selected_indicators or "BB_Low" in st.session_state.selected_indicators), key="bb_checkbox")
+    bb_selected = st.sidebar.checkbox("Bollinger Bands",
+                                     value=("BB_High" in st.session_state.selected_indicators or "BB_Mid" in st.session_state.selected_indicators or "BB_Low" in st.session_state.selected_indicators),
+                                     key="bb_checkbox")
     adx_selected = st.sidebar.checkbox("ADX", value=("ADX" in st.session_state.selected_indicators), key="adx_checkbox")
     vwap_selected = st.sidebar.checkbox("VWAP", value=("VWAP" in st.session_state.selected_indicators), key="vwap_checkbox")
 
     explanation_md = """
         **Explanation of Terms:**
 
-        **Market Sentiment Score:**
-        * This score indicates the general mood of the market towards the selected stock, based on analysis of recent news headlines.
-        * The score is calculated by counting positive and negative keywords in the news.
-            * A higher score suggests more positive sentiment.
-            * A lower or negative score suggests more negative sentiment.
-        * It's a general indicator and should be used with other information, not as a sole predictor of buy/sell decisions.
+        **Market Sentiment:**
+        * This is a summary of the overall market mood towards the selected stock.  It is analyzed by an AI model (Gemini) that considers
+            information from news headlines, financial blogs, forums, and other web sources.  The sentiment is categorized as positive,
+            negative, or neutral, along with key reasons influencing it.
 
         **Technical Indicators:**
         * **EMA (Exponential Moving Average):** Averages prices, giving more weight to recent data.  Helps identify trends.
@@ -181,38 +198,37 @@ with st.sidebar:
         * **ADX (Average Directional Index):** Measures the strength of a trend (not whether it's up or down).
         * **VWAP (Volume Weighted Average Price):** The average price of a stock over a trading day, weighted by volume.
 
+        **Analyst Ratings:**
+        * Displays the latest analyst ratings for the stock, including price targets and buy/sell recommendations.
+
         """
     st.markdown(explanation_md, unsafe_allow_html=True)
 
 placeholder = st.empty()
 
-# Update session state based on button clicks
 if start_tracking_button:
     st.session_state.stop_tracking = False
     st.session_state.start_tracking = True
-    st.session_state.tracked_tickers = tickers_list  # Store the tickers
+    st.session_state.tracked_tickers = tickers_list
     st.rerun()
 elif stop_tracking_button:
     st.session_state.stop_tracking = True
     st.session_state.start_tracking = False
     st.rerun()
 
-# Store the tickers in session state
 if "tracked_tickers" not in st.session_state:
     st.session_state.tracked_tickers = tickers_list
 
-# Real-time tracking loop
 if not st.session_state.stop_tracking:
     all_dfs = {}
     for ticker in st.session_state.tracked_tickers:
-        # Determine the period based on the day of the week
         now = datetime.now()
-        period = "2d"  #  Use a 2 day period to ensure enough data points for the 5 min interval.
-        interval = "5m"  # Fetch data at 5-minute intervals
+        period = "2d"
+        interval = "5m"
 
         df = get_stock_data(ticker, period=period, interval=interval)
         if df.empty:
-            time.sleep(300)  # 5 minutes
+            time.sleep(300)
             st.rerun()
         df = add_technical_indicators(df)
         if df.empty:
@@ -222,10 +238,10 @@ if not st.session_state.stop_tracking:
         df = generate_signals(df)
         all_dfs[ticker] = df
 
-    sentiment_data = {ticker: get_market_sentiment(ticker) for ticker in st.session_state.tracked_tickers}
+    sentiment_data = {ticker: get_market_sentiment_gemini(ticker) for ticker in
+                      st.session_state.tracked_tickers}
     analyst_ratings = {ticker: get_analyst_ratings(ticker) for ticker in st.session_state.tracked_tickers}
 
-    # Store selected indicators in session state
     st.session_state.selected_indicators = []
     if ema_20_selected:
         st.session_state.selected_indicators.append("EMA_20")
@@ -246,7 +262,6 @@ if not st.session_state.stop_tracking:
             st.subheader(f"Stock: {ticker}")
             fig = go.Figure()
 
-            # Candlestick chart
             fig.add_trace(go.Candlestick(
                 x=df.index,
                 open=df['Open'],
@@ -256,12 +271,10 @@ if not st.session_state.stop_tracking:
                 name="Candlesticks"
             ))
 
-            # Add selected indicators
             for indicator in st.session_state.selected_indicators:
                 if indicator in df:
                     fig.add_trace(go.Scatter(x=df.index, y=df[indicator], mode="lines", name=indicator))
 
-            # Buy/Sell Signals
             if "Buy_Signal" in df and "Sell_Signal" in df:
                 buy_signal_data = df[df["Buy_Signal"] == 1]
                 sell_signal_data = df[df["Sell_Signal"] == 1]
@@ -306,7 +319,6 @@ if not st.session_state.stop_tracking:
                         font=dict(size=10, color="red")
                     )
 
-            # Update layout
             fig.update_layout(
                 title=f"{ticker} Stock Performance",
                 xaxis_rangeslider_visible=False,
@@ -314,22 +326,24 @@ if not st.session_state.stop_tracking:
             )
             st.plotly_chart(fig, key=f"chart_{ticker}_{time.time()}")
 
-            # Display sentiment and ratings
-            sentiment = sentiment_data[ticker]
+            sentiment_text = sentiment_data[ticker]
             target_price, rating = analyst_ratings[ticker]
 
-            st.write(f"**Market Sentiment Score for {ticker}:** {sentiment} (Higher is better)")
+            st.write(f"**Market Sentiment for {ticker}:**")
+            st.write(sentiment_text)
             st.write(f"**Analyst Target Price for {ticker}:** {target_price}")
             st.write(f"**Analyst Rating for {ticker}:** {rating}")
 
-            # Display AI Recommendation
             if not df.empty:
                 if df["Buy_Signal"].iloc[-1] == 1:
-                    st.write(f"AI Recommendation for {ticker}: Buy at {df['Close'].iloc[-1]:.2f}  Reasons: {df['Buy_Reasons'].iloc[-1]}")
+                    st.write(
+                        f"**AI Recommendation for {ticker}:** :green[Buy] at {df['Close'].iloc[-1]:.2f}  **Reasons:** {df['Buy_Reasons'].iloc[-1]}")
                 elif df["Sell_Signal"].iloc[-1] == 1:
-                    st.write(f"AI Recommendation for {ticker}: Sell at {df['Close'].iloc[-1]:.2f} Reasons: {df['Sell_Reasons'].iloc[-1]}")
+                    st.write(
+                        f"**AI Recommendation for {ticker}:** :red[Sell] at {df['Close'].iloc[-1]:.2f}  **Reasons:** {df['Sell_Reasons'].iloc[-1]}")
                 else:
-                    st.write(f"AI Recommendation for {ticker}: No Action.   Reasons: No strong buy or sell signals detected.")
+                    st.write(
+                        f"**AI Recommendation for {ticker}:** :blue[No Action].   **Reasons:** No strong buy or sell signals detected.")
 
-        time.sleep(300)  # 5 minutes
+        time.sleep(300)
         st.rerun()
