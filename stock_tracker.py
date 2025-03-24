@@ -1,23 +1,22 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import numpy as np
 import ta
 import time
 import requests
 from bs4 import BeautifulSoup
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
-import google.generativeai as genai
 
 # Initialize session state variables
 if "stop_tracking" not in st.session_state:
     st.session_state.stop_tracking = True
 if "start_tracking" not in st.session_state:
     st.session_state.start_tracking = False
-if "genai_model" not in st.session_state:  # Add a session state variable for the model
-    st.session_state.genai_model = None
-
+if "selected_indicators" not in st.session_state:
+    st.session_state.selected_indicators = ["EMA_20", "RSI", "MACD", "BB_High", "BB_Mid", "BB_Low", "ADX", "VWAP"]
+if "tracked_tickers" not in st.session_state:
+    st.session_state.tracked_tickers = ["AAPL"]  # Default ticker list
 
 # Function to fetch stock data
 def get_stock_data(ticker, period="1y", interval="1h"):
@@ -29,7 +28,6 @@ def get_stock_data(ticker, period="1y", interval="1h"):
         st.error(f"Error fetching data for {ticker}: {e}")
         return pd.DataFrame()
 
-
 # Function to calculate technical indicators
 def add_technical_indicators(df):
     if df.empty:
@@ -39,16 +37,13 @@ def add_technical_indicators(df):
         df["RSI"] = ta.momentum.rsi(df["Close"], window=14)
         df["MACD"] = ta.trend.macd(df["Close"])
         df["MACD_Signal"] = ta.trend.macd_signal(df["Close"])
-        df["BB_High"], df["BB_Mid"], df["BB_Low"] = ta.volatility.bollinger_hband(
-            df["Close"]), ta.volatility.bollinger_mavg(df["Close"]), ta.volatility.bollinger_lband(df["Close"])
-        df["ADX"] = ta.trend.adx(df["High"], df["Low"], df["Close"])  # Added ADX
-        df["VWAP"] = ta.volume.volume_weighted_average_price(
-            df["High"], df["Low"], df["Close"], df["Volume"])  # Added VWAP
+        df["BB_High"], df["BB_Mid"], df["BB_Low"] = ta.volatility.bollinger_hband(df["Close"]), ta.volatility.bollinger_mavg(df["Close"]), ta.volatility.bollinger_lband(df["Close"])
+        df["ADX"] = ta.trend.adx(df["High"], df["Low"], df["Close"])
+        df["VWAP"] = ta.volume.volume_weighted_average_price(df["High"], df["Low"], df["Close"], df["Volume"])
         return df
     except Exception as e:
         st.error(f"Error calculating technical indicators: {e}")
         return df
-
 
 # Function to get market sentiment from financial news
 def get_market_sentiment(ticker):
@@ -56,7 +51,6 @@ def get_market_sentiment(ticker):
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
         response = requests.get(url, headers=headers)
-
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "html.parser")
             headlines = soup.find_all("h3")
@@ -69,41 +63,40 @@ def get_market_sentiment(ticker):
                     sentiment_score -= 1
             return sentiment_score
         else:
-            st.warning(
-                f"Failed to fetch news for {ticker}. Status code: {response.status_code}")
+            st.warning(f"Failed to fetch news for {ticker}. Status code: {response.status_code}")
             return 0
     except Exception as e:
         st.error(f"Error fetching market sentiment: {e}")
         return 0
 
-
 # Function to generate buy/sell signals
-def generate_signals(df, rsi_window, macd_fast, macd_slow, macd_signal_window):  # Added parameters
+def generate_signals(df):
     if df.empty:
         return df
     try:
-        # Calculate indicators with custom parameters
-        df["RSI"] = ta.momentum.rsi(df["Close"], window=rsi_window)
-        df["MACD"] = ta.trend.macd(
-            df["Close"], window_fast=macd_fast, window_slow=macd_slow)
-        df["MACD_Signal"] = ta.trend.macd_signal(
-            df["Close"], window_fast=macd_fast, window_slow=macd_slow, window_sign=macd_signal_window)
-
         buy_signals = [None] * len(df)
         sell_signals = [None] * len(df)
-        buy_prices = [None] * len(df)  # Store buy prices
-        sell_prices = [None] * len(df)  # Store sell prices
+        buy_prices = [None] * len(df)
+        sell_prices = [None] * len(df)
+        buy_reasons = [None] * len(df)
+        sell_reasons = [None] * len(df)
 
         for i in range(1, len(df)):
-            if "RSI" in df and "MACD" in df and "MACD_Signal" in df and "ADX" in df and "VWAP" in df:  # check for the new columns
+            reasons = []
+            if "RSI" in df and "MACD" in df and "MACD_Signal" in df and "ADX" in df and "VWAP" in df:
                 if (
                     df["RSI"].iloc[i] < 30
                     and df["MACD"].iloc[i] > df["MACD_Signal"].iloc[i]
-                    and df["ADX"].iloc[i] > 25  # ADX filter: trend strength
-                    and df["Close"].iloc[i] > df["VWAP"].iloc[i]  # Price above VWAP
+                    and df["ADX"].iloc[i] > 25
+                    and df["Close"].iloc[i] > df["VWAP"].iloc[i]
                 ):
                     buy_signals[i] = 1
                     buy_prices[i] = df["Close"].iloc[i]
+                    reasons.append("RSI < 30 (Oversold)")
+                    reasons.append("MACD > Signal (Bullish)")
+                    reasons.append("ADX > 25 (Strong Trend)")
+                    reasons.append("Close > VWAP")
+                    buy_reasons[i] = ", ".join(reasons)
                 elif (
                     df["RSI"].iloc[i] > 70
                     and df["MACD"].iloc[i] < df["MACD_Signal"].iloc[i]
@@ -112,100 +105,45 @@ def generate_signals(df, rsi_window, macd_fast, macd_slow, macd_signal_window): 
                 ):
                     sell_signals[i] = 1
                     sell_prices[i] = df["Close"].iloc[i]
-            else:
-                st.error("Required columns not found in DataFrame.")
-                return df
-
+                    reasons.append("RSI > 70 (Overbought)")
+                    reasons.append("MACD < Signal (Bearish)")
+                    reasons.append("ADX > 25 (Strong Trend)")
+                    reasons.append("Close < VWAP")
+                    sell_reasons[i] = ", ".join(reasons)
         df["Buy_Signal"] = pd.Series(buy_signals, index=df.index)
         df["Sell_Signal"] = pd.Series(sell_signals, index=df.index)
         df["Buy_Price"] = pd.Series(buy_prices, index=df.index)
         df["Sell_Price"] = pd.Series(sell_prices, index=df.index)
+        df["Buy_Reasons"] = pd.Series(buy_reasons, index=df.index)
+        df["Sell_Reasons"] = pd.Series(sell_reasons, index=df.index)
         return df
     except Exception as e:
         st.error(f"Error generating signals: {e}")
         return df
 
-
-# Function for backtesting
-def backtest(df, rsi_window, macd_fast, macd_slow, macd_signal_window, initial_capital=10000):
-    df = generate_signals(df, rsi_window, macd_fast,
-                           macd_slow, macd_signal_window)
-
-    positions = []
-    capital = initial_capital
-    buy_price = 0  # Initialize buy_price here to avoid NameError.  This is CRUCIAL
-
-    for i in range(len(df)):
-        if df["Buy_Signal"].iloc[i] == 1 and not positions:
-            positions.append(
-                ("Buy", df["Close"].iloc[i], capital / df["Close"].iloc[i], i))  # (Buy/Sell, Price, Quantity, Index)
-            capital = 0
-            buy_price = df["Close"].iloc[i]  # Capture buy price
-        elif df["Sell_Signal"].iloc[i] == 1 and positions:
-            quantity = positions[0][2]
-            capital = quantity * df["Close"].iloc[i]
-            positions.append(("Sell", df["Close"].iloc[i], quantity, i))
-            positions = []  # Clear positions after selling
-
-    if positions:  # Handle any open positions at the end
-        final_price = df["Close"].iloc[-1]
-        capital = positions[0][2] * final_price
-        positions.append(("Sell", final_price, positions[0][2], len(df) - 1))
-
-    total_profit = capital - initial_capital
-
-    # Calculate max drawdown
-    peak = initial_capital
-    drawdown = 0
-    max_drawdown = 0
-    for p in positions:
-        if p[0] == "Buy":
-            peak = initial_capital
-        elif p[0] == "Sell":
-            peak = max(peak, capital + (p[1] - buy_price) * p[2])
-            drawdown = peak - capital
-            max_drawdown = max(max_drawdown, drawdown)
-
-    if initial_capital > 0:
-        profit_factor = capital / initial_capital if initial_capital > 0 else 0
-    else:
-        profit_factor = 0
-    return total_profit, profit_factor, max_drawdown, positions  # returning the positions
-
-
-# Function to optimize parameters
-def optimize_parameters(df):
-    best_profit_factor = -float('inf')
-    best_rsi_window = None
-    best_macd_fast = None
-    best_macd_slow = None
-    best_macd_signal_window = None
-
-    rsi_windows = [10, 14, 20]
-    macd_fasts = [12]
-    macd_slows = [26]
-    macd_signal_windows = [9]
-
-    for rsi_window in rsi_windows:
-        for macd_fast in macd_fasts:
-            for macd_slow in macd_slows:
-                for macd_signal_window in macd_signal_windows:
-                    profit, profit_factor, max_drawdown, positions = backtest(
-                        df.copy(), rsi_window, macd_fast, macd_slow, macd_signal_window)
-                    if profit_factor > best_profit_factor:
-                        best_profit_factor = profit_factor
-                        best_rsi_window = rsi_window
-                        best_macd_fast = macd_fast
-                        best_macd_slow = macd_slow
-                        best_macd_signal_window = macd_signal_window
-    return best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window, best_profit_factor
-
+# Function to get analyst ratings
+def get_analyst_ratings(ticker):
+    url = f"https://finance.yahoo.com/quote/{ticker}/analysis"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, "html.parser")
+            target_est = soup.find("td", {"class": "Ta(end) Fw(b) Lh(1.42)"}).text if soup.find("td", {"class": "Ta(end) Fw(b) Lh(1.42)"}) else "N/A"
+            rating = soup.find("div", {"class": "Fw(600) Mt(8px) D(ib)"}).text if soup.find("div", {"class": "Fw(600) Mt(8px) D(ib)"}) else "N/A"
+            return target_est, rating
+        else:
+            st.warning(f"Failed to fetch analyst ratings for {ticker}. Status code: {response.status_code}")
+            return "N/A", "N/A"
+    except Exception as e:
+        st.error(f"Error fetching analyst ratings: {e}")
+        return "N/A", "N/A"
 
 # Streamlit UI
-st.title("📈 Real-time Stock Tracker with AI-based Signals")
+st.title("📈 Real-time Stock Tracker with Buy/Sell Recommendations")
 
-ticker = st.text_input(
-    "Enter Stock Ticker (e.g., AAPL, TSLA, MSFT):", "AAPL")
+tickers = st.text_input("Enter Stock Tickers (comma-separated, e.g., AAPL, TSLA, MSFT):", "AAPL,TSLA,MSFT")
+tickers_list = [ticker.strip() for ticker in tickers.split(",")]
 
 # Buttons for starting and stopping tracking
 col1, col2 = st.columns([1, 1])
@@ -216,6 +154,15 @@ with col2:
 
 # Sidebar for explanations
 with st.sidebar:
+    # Add checkboxes for indicators in the sidebar
+    st.sidebar.subheader("Select Technical Indicators")
+    ema_20_selected = st.sidebar.checkbox("EMA 20", value=("EMA_20" in st.session_state.selected_indicators), key="ema_20_checkbox")
+    rsi_selected = st.sidebar.checkbox("RSI", value=("RSI" in st.session_state.selected_indicators), key="rsi_checkbox")
+    macd_selected = st.sidebar.checkbox("MACD", value=("MACD" in st.session_state.selected_indicators), key="macd_checkbox")
+    bb_selected = st.sidebar.checkbox("Bollinger Bands", value=("BB_High" in st.session_state.selected_indicators or "BB_Mid" in st.session_state.selected_indicators or "BB_Low" in st.session_state.selected_indicators), key="bb_checkbox")
+    adx_selected = st.sidebar.checkbox("ADX", value=("ADX" in st.session_state.selected_indicators), key="adx_checkbox")
+    vwap_selected = st.sidebar.checkbox("VWAP", value=("VWAP" in st.session_state.selected_indicators), key="vwap_checkbox")
+
     explanation_md = """
         **Explanation of Terms:**
 
@@ -226,189 +173,163 @@ with st.sidebar:
             * A lower or negative score suggests more negative sentiment.
         * It's a general indicator and should be used with other information, not as a sole predictor of buy/sell decisions.
 
-        **Optimized Parameters:**
-        * The app uses technical indicators (RSI and MACD) to generate buy/sell signals. These indicators have adjustable settings (parameters).
-        * The app automatically tries different parameter values to find the combination that historically would have produced the best results.
-        * RSI Window: The number of past periods used to calculate the Relative Strength Index (RSI).
-        * MACD Fast: The shorter period EMA used in the MACD calculation.
-        * MACD Slow: The longer period EMA used in the MACD calculation.
-        * MACD Signal: The number of periods used to calculate the signal line of the MACD.
-        * Optimized Profit Factor: The profit factor achieved by the optimized parameters in historical testing.
+        **Technical Indicators:**
+        * **EMA (Exponential Moving Average):** Averages prices, giving more weight to recent data.  Helps identify trends.
+        * **RSI (Relative Strength Index):** Measures how overbought or oversold a stock is, suggesting potential reversals.
+        * **MACD (Moving Average Convergence Divergence):** Shows the relationship between two moving averages and can signal trend changes.
+        * **Bollinger Bands:** Show the range where a stock's price typically trades, with high/low bands marking potential extremes.
+        * **ADX (Average Directional Index):** Measures the strength of a trend (not whether it's up or down).
+        * **VWAP (Volume Weighted Average Price):** The average price of a stock over a trading day, weighted by volume.
 
-        **Backtesting Results:**
-        * Backtesting is the process of testing a trading strategy on historical data to see how it would have performed.
-        * The app performs a simplified backtest to evaluate the effectiveness of the buy/sell signals generated with the optimized parameters.
-        * Total Profit: The total profit or loss that would have been generated by the strategy over the backtesting period, in dollars.
-        * Profit Factor: A measure of a trading strategy's profitability. It's calculated as the ratio of gross profit to gross loss.
-            * A profit factor greater than 1 indicates a profitable strategy.
-            * A higher profit factor is generally better.
-        * Max Drawdown: The largest peak-to-trough decline during the backtesting period. It indicates the potential risk of the strategy.
-            * A lower max drawdown is generally better, as it indicates less risk.
-        * Trades: The individual trades that the backtest would have made, including the type of trade (buy or sell), the price, and the date.
-
-        **How this Explains Buy/Sell Recommendations:**
-        * The app uses the optimized parameters in its core buy/sell signal generation logic. The backtesting results show how those parameters would have performed historically. So, the parameters are chosen to try to maximize profitability, and the backtest shows you how that worked out. The market sentiment is an additional piece of information to consider.
         """
-    st.markdown(explanation_md)
+    st.markdown(explanation_md, unsafe_allow_html=True)
 
 placeholder = st.empty()
-
-# Initialize the Gemini model
-try:
-    if not st.session_state.genai_model:
-        genai.configure(api_key=st.secrets["GENAI_KEY"])  # Use st.secrets
-        st.session_state.genai_model = genai.GenerativeModel(
-            "gemini-pro")  # Initialize and store the model
-except Exception as e:
-    st.error(f"Error initializing Gemini model: {e}")
-    st.stop()  # Stop if the model fails to initialize
 
 # Update session state based on button clicks
 if start_tracking_button:
     st.session_state.stop_tracking = False
     st.session_state.start_tracking = True
+    st.session_state.tracked_tickers = tickers_list  # Store the tickers
     st.rerun()
-
-if stop_tracking_button:
+elif stop_tracking_button:
     st.session_state.stop_tracking = True
     st.session_state.start_tracking = False
     st.rerun()
 
+# Store the tickers in session state
+if "tracked_tickers" not in st.session_state:
+    st.session_state.tracked_tickers = tickers_list
+
 # Real-time tracking loop
 if not st.session_state.stop_tracking:
-    df = get_stock_data(ticker, period="1y", interval="1h")
-    if df.empty:
-        time.sleep(15)
-        st.rerun()
+    all_dfs = {}
+    for ticker in st.session_state.tracked_tickers:
+        # Determine the period based on the day of the week
+        now = datetime.now()
+        period = "2d"  #  Use a 2 day period to ensure enough data points for the 5 min interval.
+        interval = "5m"  # Fetch data at 5-minute intervals
 
-    df = add_technical_indicators(df)
+        df = get_stock_data(ticker, period=period, interval=interval)
+        if df.empty:
+            time.sleep(300)  # 5 minutes
+            st.rerun()
+        df = add_technical_indicators(df)
+        if df.empty:
+            st.error(f"No data available for {ticker}. Please check the ticker symbol and try again.")
+            time.sleep(300)
+            st.rerun()
+        df = generate_signals(df)
+        all_dfs[ticker] = df
 
-    # Optimize parameters
-    (best_rsi_window, best_macd_fast, best_macd_slow,
-     best_macd_signal_window, best_profit_factor) = optimize_parameters(df.copy())
-    st.write(
-        f"Optimized Parameters: RSI Window = {best_rsi_window}, MACD Fast = {best_macd_fast}, MACD Slow = {best_macd_slow}, MACD Signal = {best_macd_signal_window}")  # show params
-    st.write(f"Optimized Profit Factor: {best_profit_factor:.2f}")  # show profit factor
+    sentiment_data = {ticker: get_market_sentiment(ticker) for ticker in st.session_state.tracked_tickers}
+    analyst_ratings = {ticker: get_analyst_ratings(ticker) for ticker in st.session_state.tracked_tickers}
 
-    df = generate_signals(df, best_rsi_window, best_macd_fast,
-                           best_macd_slow, best_macd_signal_window)
-    sentiment = get_market_sentiment(ticker)
+    # Store selected indicators in session state
+    st.session_state.selected_indicators = []
+    if ema_20_selected:
+        st.session_state.selected_indicators.append("EMA_20")
+    if rsi_selected:
+        st.session_state.selected_indicators.append("RSI")
+    if macd_selected:
+        st.session_state.selected_indicators.append("MACD")
+    if bb_selected:
+        st.session_state.selected_indicators.extend(["BB_High", "BB_Mid", "BB_Low"])
+    if adx_selected:
+        st.session_state.selected_indicators.append("ADX")
+    if vwap_selected:
+        st.session_state.selected_indicators.append("VWAP")
 
-    # Debugging: Print indicator values
-    if not df.empty:
-        st.write(f"Current RSI: {df['RSI'].iloc[-1]:.2f}")
-        st.write(
-            f"Current MACD: {df['MACD'].iloc[-1]:.2f}, Signal: {df['MACD_Signal'].iloc[-1]:.2f}")
-        st.write(f"Current ADX: {df['ADX'].iloc[-1]:.2f}")
-        st.write(
-            f"Current Close: {df['Close'].iloc[-1]:.2f}, VWAP: {df['VWAP'].iloc[-1]:.2f}")
-
-    # Create plot
-    fig = go.Figure()
-
-    # Candlestick chart
-    fig.add_trace(go.Candlestick(
-        x=df.index,
-        open=df['Open'],
-        high=df['High'],
-        low=df['Low'],
-        close=df['Close'],
-        name="Candlesticks"
-    ))
-
-    # EMA 20
-    if "EMA_20" in df:
-        fig.add_trace(go.Scatter(x=df.index, y=df["EMA_20"], mode="lines",
-                      name="EMA 20", line=dict(color='blue')))
-
-    # Bollinger Bands
-    if "BB_High" in df and "BB_Low" in df:
-        fig.add_trace(go.Scatter(x=df.index, y=df["BB_High"], mode="lines",
-                      name="Bollinger High", line=dict(color='green')))
-        fig.add_trace(go.Scatter(x=df.index, y=df["BB_Low"], mode="lines",
-                      name="Bollinger Low", line=dict(color='red')))
-
-    if "VWAP" in df:
-        fig.add_trace(go.Scatter(x=df.index, y=df["VWAP"], mode="lines",
-                      name="VWAP", line=dict(color='purple')))  # add vwap
-
-    # Buy Signals (🔵) - Changed to vertical dotted lines
-    if "Buy_Signal" in df:
-        buy_signal_data = df[df["Buy_Signal"].notnull()]
-        if not buy_signal_data.empty:
-            for index, row in buy_signal_data.iterrows():
-                fig.add_shape(
-                    type="line",
-                    x0=index,
-                    x1=index,
-                    y0=df['Low'].min(),
-                    y1=df['High'].max(),
-                    line=dict(
-                        color="blue",
-                        width=2,
-                        dash="dot",
-                    ),
-                    name="Buy Signal",
-                )
-                # Display Buy Price
-                fig.add_annotation(
-                    x=index,
-                    y=df['High'].max(),
-                    text=f"Buy: {row['Buy_Price']:.2f}",
-                    showarrow=False,
-                    xanchor="left",
-                    yanchor="bottom",
-                    font=dict(size=10, color="blue"),
-                )
-
-    # Sell Signals (🔴) - Changed to vertical dotted lines
-    if "Sell_Signal" in df:
-        sell_signal_data = df[df["Sell_Signal"].notnull()]
-        if not sell_signal_data.empty:
-            for index, row in sell_signal_data.iterrows():
-                fig.add_shape(
-                    type="line",
-                    x0=index,
-                    x1=index,
-                    y0=df['Low'].min(),
-                    y1=df['High'].max(),
-                    line=dict(
-                        color="red",
-                        width=2,
-                        dash="dot",
-                    ),
-                    name="Sell Signal",
-                )
-                # Display Sell Price
-                fig.add_annotation(
-                    x=index,
-                    y=df['High'].max(),
-                    text=f"Sell: {row['Sell_Price']:.2f}",
-                    showarrow=False,
-                    xanchor="left",
-                    yanchor="bottom",
-                    font=dict(size=10, color="red"),
-                )
-
-    # Backtest and display results
-    profit, profit_factor, max_drawdown, positions = backtest(
-        df.copy(), best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window)
-    st.write("Backtesting Results:")
-    st.write(f"  Total Profit: {profit:.2f}")
-    st.write(f"  Profit Factor: {profit_factor:.2f}")
-    st.write(f"  Max Drawdown: {max_drawdown:.2f}")
-    st.write("  Trades:")
-    for trade in positions:
-        st.write(f"    {trade[0]} at {trade[1]:.2f} on {df.index[trade[3]]}")
-
-    # Update layout
-    fig.update_layout(
-        title=f"{ticker} Stock Performance", xaxis_rangeslider_visible=False)
-
-    # Display chart and signals
     with placeholder.container():
-        st.plotly_chart(fig, key=f"chart_{time.time()}")
-        st.write(f"**Market Sentiment Score:** {sentiment} (Higher is better)")
+        for ticker in st.session_state.tracked_tickers:
+            df = all_dfs[ticker]
+            st.subheader(f"Stock: {ticker}")
+            fig = go.Figure()
 
-    time.sleep(15)
-    st.rerun()
+            # Candlestick chart
+            fig.add_trace(go.Candlestick(
+                x=df.index,
+                open=df['Open'],
+                high=df['High'],
+                low=df['Low'],
+                close=df['Close'],
+                name="Candlesticks"
+            ))
+
+            # Add selected indicators
+            for indicator in st.session_state.selected_indicators:
+                if indicator in df:
+                    fig.add_trace(go.Scatter(x=df.index, y=df[indicator], mode="lines", name=indicator))
+
+            # Buy/Sell Signals
+            if "Buy_Signal" in df and "Sell_Signal" in df:
+                buy_signal_data = df[df["Buy_Signal"] == 1]
+                sell_signal_data = df[df["Sell_Signal"] == 1]
+
+                for index, row in buy_signal_data.iterrows():
+                    fig.add_shape(
+                        type="line",
+                        x0=index,
+                        x1=index,
+                        y0=df['Low'].min(),
+                        y1=df['High'].max(),
+                        line=dict(color="blue", width=2, dash="dot"),
+                        name="Buy Signal"
+                    )
+                    fig.add_annotation(
+                        x=index,
+                        y=df['High'].max(),
+                        text=f"Buy: {row['Buy_Price']:.2f}",
+                        showarrow=False,
+                        xanchor="left",
+                        yanchor="bottom",
+                        font=dict(size=10, color="blue")
+                    )
+
+                for index, row in sell_signal_data.iterrows():
+                    fig.add_shape(
+                        type="line",
+                        x0=index,
+                        x1=index,
+                        y0=df['Low'].min(),
+                        y1=df['High'].max(),
+                        line=dict(color="red", width=2, dash="dot"),
+                        name="Sell Signal"
+                    )
+                    fig.add_annotation(
+                        x=index,
+                        y=df['High'].max(),
+                        text=f"Sell: {row['Sell_Price']:.2f}",
+                        showarrow=False,
+                        xanchor="left",
+                        yanchor="bottom",
+                        font=dict(size=10, color="red")
+                    )
+
+            # Update layout
+            fig.update_layout(
+                title=f"{ticker} Stock Performance",
+                xaxis_rangeslider_visible=False,
+                showlegend=True
+            )
+            st.plotly_chart(fig, key=f"chart_{ticker}_{time.time()}")
+
+            # Display sentiment and ratings
+            sentiment = sentiment_data[ticker]
+            target_price, rating = analyst_ratings[ticker]
+
+            st.write(f"**Market Sentiment Score for {ticker}:** {sentiment} (Higher is better)")
+            st.write(f"**Analyst Target Price for {ticker}:** {target_price}")
+            st.write(f"**Analyst Rating for {ticker}:** {rating}")
+
+            # Display AI Recommendation
+            if not df.empty:
+                if df["Buy_Signal"].iloc[-1] == 1:
+                    st.write(f"AI Recommendation for {ticker}: Buy at {df['Close'].iloc[-1]:.2f}  Reasons: {df['Buy_Reasons'].iloc[-1]}")
+                elif df["Sell_Signal"].iloc[-1] == 1:
+                    st.write(f"AI Recommendation for {ticker}: Sell at {df['Close'].iloc[-1]:.2f} Reasons: {df['Sell_Reasons'].iloc[-1]}")
+                else:
+                    st.write(f"AI Recommendation for {ticker}: No Action.   Reasons: No strong buy or sell signals detected.")
+
+        time.sleep(300)  # 5 minutes
+        st.rerun()
