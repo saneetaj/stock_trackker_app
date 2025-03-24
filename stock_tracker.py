@@ -15,8 +15,9 @@ if "stop_tracking" not in st.session_state:
     st.session_state.stop_tracking = True
 if "start_tracking" not in st.session_state:
     st.session_state.start_tracking = False
-if "genai_model" not in st.session_state: # Add a session state variable for the model
+if "genai_model" not in st.session_state:  # Add a session state variable for the model
     st.session_state.genai_model = None
+
 
 # Function to fetch stock data
 def get_stock_data(ticker, period="1y", interval="1h"):
@@ -28,6 +29,7 @@ def get_stock_data(ticker, period="1y", interval="1h"):
         st.error(f"Error fetching data for {ticker}: {e}")
         return pd.DataFrame()
 
+
 # Function to calculate technical indicators
 def add_technical_indicators(df):
     if df.empty:
@@ -37,13 +39,16 @@ def add_technical_indicators(df):
         df["RSI"] = ta.momentum.rsi(df["Close"], window=14)
         df["MACD"] = ta.trend.macd(df["Close"])
         df["MACD_Signal"] = ta.trend.macd_signal(df["Close"])
-        df["BB_High"], df["BB_Mid"], df["BB_Low"] = ta.volatility.bollinger_hband(df["Close"]), ta.volatility.bollinger_mavg(df["Close"]), ta.volatility.bollinger_lband(df["Close"])
+        df["BB_High"], df["BB_Mid"], df["BB_Low"] = ta.volatility.bollinger_hband(
+            df["Close"]), ta.volatility.bollinger_mavg(df["Close"]), ta.volatility.bollinger_lband(df["Close"])
         df["ADX"] = ta.trend.adx(df["High"], df["Low"], df["Close"])  # Added ADX
-        df["VWAP"] = ta.volume.volume_weighted_average_price(df["High"], df["Low"], df["Close"], df["Volume"]) # Added VWAP
+        df["VWAP"] = ta.volume.volume_weighted_average_price(
+            df["High"], df["Low"], df["Close"], df["Volume"])  # Added VWAP
         return df
     except Exception as e:
         st.error(f"Error calculating technical indicators: {e}")
         return df
+
 
 # Function to get market sentiment from financial news
 def get_market_sentiment(ticker):
@@ -64,11 +69,13 @@ def get_market_sentiment(ticker):
                     sentiment_score -= 1
             return sentiment_score
         else:
-            st.warning(f"Failed to fetch news for {ticker}. Status code: {response.status_code}")
+            st.warning(
+                f"Failed to fetch news for {ticker}. Status code: {response.status_code}")
             return 0
     except Exception as e:
         st.error(f"Error fetching market sentiment: {e}")
         return 0
+
 
 # Function to generate buy/sell signals
 def generate_signals(df, rsi_window, macd_fast, macd_slow, macd_signal_window):  # Added parameters
@@ -77,21 +84,23 @@ def generate_signals(df, rsi_window, macd_fast, macd_slow, macd_signal_window): 
     try:
         # Calculate indicators with custom parameters
         df["RSI"] = ta.momentum.rsi(df["Close"], window=rsi_window)
-        df["MACD"] = ta.trend.macd(df["Close"], window_fast=macd_fast, window_slow=macd_slow)
-        df["MACD_Signal"] = ta.trend.macd_signal(df["Close"], window_fast=macd_fast, window_slow=macd_slow, window_sign=macd_signal_window)
-        
+        df["MACD"] = ta.trend.macd(
+            df["Close"], window_fast=macd_fast, window_slow=macd_slow)
+        df["MACD_Signal"] = ta.trend.macd_signal(
+            df["Close"], window_fast=macd_fast, window_slow=macd_slow, window_sign=macd_signal_window)
+
         buy_signals = [None] * len(df)
         sell_signals = [None] * len(df)
         buy_prices = [None] * len(df)  # Store buy prices
         sell_prices = [None] * len(df)  # Store sell prices
 
         for i in range(1, len(df)):
-            if "RSI" in df and "MACD" in df and "MACD_Signal" in df and "ADX" in df and "VWAP" in df: #check for the new columns
+            if "RSI" in df and "MACD" in df and "MACD_Signal" in df and "ADX" in df and "VWAP" in df:  # check for the new columns
                 if (
                     df["RSI"].iloc[i] < 30
                     and df["MACD"].iloc[i] > df["MACD_Signal"].iloc[i]
                     and df["ADX"].iloc[i] > 25  # ADX filter: trend strength
-                    and df["Close"].iloc[i] > df["VWAP"].iloc[i] # Price above VWAP
+                    and df["Close"].iloc[i] > df["VWAP"].iloc[i]  # Price above VWAP
                 ):
                     buy_signals[i] = 1
                     buy_prices[i] = df["Close"].iloc[i]
@@ -116,32 +125,35 @@ def generate_signals(df, rsi_window, macd_fast, macd_slow, macd_signal_window): 
         st.error(f"Error generating signals: {e}")
         return df
 
+
 # Function for backtesting
 def backtest(df, rsi_window, macd_fast, macd_slow, macd_signal_window, initial_capital=10000):
-    df = generate_signals(df, rsi_window, macd_fast, macd_slow, macd_signal_window)
-    
+    df = generate_signals(df, rsi_window, macd_fast,
+                           macd_slow, macd_signal_window)
+
     positions = []
     capital = initial_capital
     buy_price = 0  # Initialize buy_price here to avoid NameError.  This is CRUCIAL
-    
+
     for i in range(len(df)):
         if df["Buy_Signal"].iloc[i] == 1 and not positions:
-            positions.append(("Buy", df["Close"].iloc[i], capital / df["Close"].iloc[i], i))  # (Buy/Sell, Price, Quantity, Index)
+            positions.append(
+                ("Buy", df["Close"].iloc[i], capital / df["Close"].iloc[i], i))  # (Buy/Sell, Price, Quantity, Index)
             capital = 0
-            buy_price = df["Close"].iloc[i] # Capture buy price
+            buy_price = df["Close"].iloc[i]  # Capture buy price
         elif df["Sell_Signal"].iloc[i] == 1 and positions:
             quantity = positions[0][2]
             capital = quantity * df["Close"].iloc[i]
             positions.append(("Sell", df["Close"].iloc[i], quantity, i))
             positions = []  # Clear positions after selling
 
-    if positions: # Handle any open positions at the end
+    if positions:  # Handle any open positions at the end
         final_price = df["Close"].iloc[-1]
         capital = positions[0][2] * final_price
-        positions.append(("Sell", final_price, positions[0][2], len(df)-1))
+        positions.append(("Sell", final_price, positions[0][2], len(df) - 1))
 
     total_profit = capital - initial_capital
-    
+
     # Calculate max drawdown
     peak = initial_capital
     drawdown = 0
@@ -153,13 +165,12 @@ def backtest(df, rsi_window, macd_fast, macd_slow, macd_signal_window, initial_c
             peak = max(peak, capital + (p[1] - buy_price) * p[2])
             drawdown = peak - capital
             max_drawdown = max(max_drawdown, drawdown)
-    
-    
+
     if initial_capital > 0:
-      profit_factor = capital / initial_capital if initial_capital > 0 else 0
+        profit_factor = capital / initial_capital if initial_capital > 0 else 0
     else:
-      profit_factor = 0
-    return total_profit, profit_factor, max_drawdown, positions #returning the positions
+        profit_factor = 0
+    return total_profit, profit_factor, max_drawdown, positions  # returning the positions
 
 
 # Function to optimize parameters
@@ -169,17 +180,18 @@ def optimize_parameters(df):
     best_macd_fast = None
     best_macd_slow = None
     best_macd_signal_window = None
-    
+
     rsi_windows = [10, 14, 20]
     macd_fasts = [12]
     macd_slows = [26]
     macd_signal_windows = [9]
-    
+
     for rsi_window in rsi_windows:
         for macd_fast in macd_fasts:
             for macd_slow in macd_slows:
                 for macd_signal_window in macd_signal_windows:
-                    profit, profit_factor, max_drawdown, positions = backtest(df.copy(), rsi_window, macd_fast, macd_slow, macd_signal_window)
+                    profit, profit_factor, max_drawdown, positions = backtest(
+                        df.copy(), rsi_window, macd_fast, macd_slow, macd_signal_window)
                     if profit_factor > best_profit_factor:
                         best_profit_factor = profit_factor
                         best_rsi_window = rsi_window
@@ -188,10 +200,12 @@ def optimize_parameters(df):
                         best_macd_signal_window = macd_signal_window
     return best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window, best_profit_factor
 
+
 # Streamlit UI
 st.title("📈 Real-time Stock Tracker with AI-based Signals")
 
-ticker = st.text_input("Enter Stock Ticker (e.g., AAPL, TSLA, MSFT):", "AAPL")
+ticker = st.text_input(
+    "Enter Stock Ticker (e.g., AAPL, TSLA, MSFT):", "AAPL")
 
 # Buttons for starting and stopping tracking
 col1, col2 = st.columns([1, 1])
@@ -243,7 +257,8 @@ placeholder = st.empty()
 try:
     if not st.session_state.genai_model:
         genai.configure(api_key=st.secrets["GENAI_KEY"])  # Use st.secrets
-        st.session_state.genai_model = genai.GenerativeModel("gemini-pro") # Initialize and store the model
+        st.session_state.genai_model = genai.GenerativeModel(
+            "gemini-pro")  # Initialize and store the model
 except Exception as e:
     st.error(f"Error initializing Gemini model: {e}")
     st.stop()  # Stop if the model fails to initialize
@@ -265,23 +280,28 @@ if not st.session_state.stop_tracking:
     if df.empty:
         time.sleep(15)
         st.rerun()
-    
+
     df = add_technical_indicators(df)
-    
+
     # Optimize parameters
-    best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window, best_profit_factor = optimize_parameters(df.copy())
-    st.write(f"Optimized Parameters: RSI Window = {best_rsi_window}, MACD Fast = {best_macd_fast}, MACD Slow = {best_macd_slow}, MACD Signal = {best_macd_signal_window}") #show params
-    st.write(f"Optimized Profit Factor: {best_profit_factor:.2f}") # show profit factor
-    
-    df = generate_signals(df, best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window)
+    (best_rsi_window, best_macd_fast, best_macd_slow,
+     best_macd_signal_window, best_profit_factor) = optimize_parameters(df.copy())
+    st.write(
+        f"Optimized Parameters: RSI Window = {best_rsi_window}, MACD Fast = {best_macd_fast}, MACD Slow = {best_macd_slow}, MACD Signal = {best_macd_signal_window}")  # show params
+    st.write(f"Optimized Profit Factor: {best_profit_factor:.2f}")  # show profit factor
+
+    df = generate_signals(df, best_rsi_window, best_macd_fast,
+                           best_macd_slow, best_macd_signal_window)
     sentiment = get_market_sentiment(ticker)
 
     # Debugging: Print indicator values
     if not df.empty:
         st.write(f"Current RSI: {df['RSI'].iloc[-1]:.2f}")
-        st.write(f"Current MACD: {df['MACD'].iloc[-1]:.2f}, Signal: {df['MACD_Signal'].iloc[-1]:.2f}")
+        st.write(
+            f"Current MACD: {df['MACD'].iloc[-1]:.2f}, Signal: {df['MACD_Signal'].iloc[-1]:.2f}")
         st.write(f"Current ADX: {df['ADX'].iloc[-1]:.2f}")
-        st.write(f"Current Close: {df['Close'].iloc[-1]:.2f}, VWAP: {df['VWAP'].iloc[-1]:.2f}")
+        st.write(
+            f"Current Close: {df['Close'].iloc[-1]:.2f}, VWAP: {df['VWAP'].iloc[-1]:.2f}")
 
     # Create plot
     fig = go.Figure()
@@ -298,15 +318,19 @@ if not st.session_state.stop_tracking:
 
     # EMA 20
     if "EMA_20" in df:
-        fig.add_trace(go.Scatter(x=df.index, y=df["EMA_20"], mode="lines", name="EMA 20", line=dict(color='blue')))
+        fig.add_trace(go.Scatter(x=df.index, y=df["EMA_20"], mode="lines",
+                      name="EMA 20", line=dict(color='blue')))
 
     # Bollinger Bands
     if "BB_High" in df and "BB_Low" in df:
-        fig.add_trace(go.Scatter(x=df.index, y=df["BB_High"], mode="lines", name="Bollinger High", line=dict(color='green')))
-        fig.add_trace(go.Scatter(x=df.index, y=df["BB_Low"], mode="lines", name="Bollinger Low", line=dict(color='red')))
-    
+        fig.add_trace(go.Scatter(x=df.index, y=df["BB_High"], mode="lines",
+                      name="Bollinger High", line=dict(color='green')))
+        fig.add_trace(go.Scatter(x=df.index, y=df["BB_Low"], mode="lines",
+                      name="Bollinger Low", line=dict(color='red')))
+
     if "VWAP" in df:
-        fig.add_trace(go.Scatter(x=df.index, y=df["VWAP"], mode="lines", name="VWAP", line=dict(color='purple'))) #add vwap
+        fig.add_trace(go.Scatter(x=df.index, y=df["VWAP"], mode="lines",
+                      name="VWAP", line=dict(color='purple')))  # add vwap
 
     # Buy Signals (🔵) - Changed to vertical dotted lines
     if "Buy_Signal" in df:
@@ -366,23 +390,25 @@ if not st.session_state.stop_tracking:
                     font=dict(size=10, color="red"),
                 )
 
-        # Backtest and display results
-        profit, profit_factor, max_drawdown, positions = backtest(df.copy(), best_rsi_window, best_macd_fast, best_macd_slow, macd_signal_window)
-        st.write("Backtesting Results:")
-        st.write(f"  Total Profit: {profit:.2f}")
-        st.write(f"  Profit Factor: {profit_factor:.2f}")
-        st.write(f"  Max Drawdown: {max_drawdown:.2f}")
-        st.write("  Trades:")
-        for trade in positions:
-            st.write(f"    {trade[0]} at {trade[1]:.2f} on {df.index[trade[3]]}")
+    # Backtest and display results
+    profit, profit_factor, max_drawdown, positions = backtest(
+        df.copy(), best_rsi_window, best_macd_fast, best_macd_slow, best_macd_signal_window)
+    st.write("Backtesting Results:")
+    st.write(f"  Total Profit: {profit:.2f}")
+    st.write(f"  Profit Factor: {profit_factor:.2f}")
+    st.write(f"  Max Drawdown: {max_drawdown:.2f}")
+    st.write("  Trades:")
+    for trade in positions:
+        st.write(f"    {trade[0]} at {trade[1]:.2f} on {df.index[trade[3]]}")
 
     # Update layout
-    fig.update_layout(title=f"{ticker} Stock Performance", xaxis_rangeslider_visible=False)
+    fig.update_layout(
+        title=f"{ticker} Stock Performance", xaxis_rangeslider_visible=False)
 
     # Display chart and signals
     with placeholder.container():
         st.plotly_chart(fig, key=f"chart_{time.time()}")
         st.write(f"**Market Sentiment Score:** {sentiment} (Higher is better)")
 
-        time.sleep(15)
-        st.rerun()
+    time.sleep(15)
+    st.rerun()
