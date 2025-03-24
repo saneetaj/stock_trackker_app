@@ -18,7 +18,7 @@ if "tracked_tickers" not in st.session_state:
     st.session_state.tracked_tickers = ["AAPL"]  # Default ticker list
 
 # Configure Gemini API
-GENAI_KEY = "YOUR_GEMINI_API_KEY"  # Replace with your actual API key
+GENAI_KEY = "AIzaSyBT0D8yAauWzAYQt0u2wxwVf8ig2H-bMEU"  # Replace with your actual API key
 genai.configure(api_key=GENAI_KEY)
 model = genai.GenerativeModel("gemini-pro")
 
