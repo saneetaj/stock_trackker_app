@@ -57,7 +57,7 @@ def get_market_sentiment(ticker):
             sentiment_score = 0
             for h in headlines[:5]:
                 text = h.text.lower()
-                if any(word in text for word in ["rises", "soars", "strong", "bullish", "positive"]):
+                if any(word in text for word in ["rises", "soars", "strong", "bullish", "positive", "jumps"]):
                     sentiment_score += 1
                 elif any(word in text for word in ["drops", "falls", "weak", "bearish", "negative"]):
                     sentiment_score -= 1
